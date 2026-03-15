@@ -1,0 +1,49 @@
+schema_version: "1.0"
+
+rules:
+  - id: duplicate_refdes
+    enabled: true
+    severity: error
+
+  - id: missing_attributes
+    enabled: true
+    severity: warning
+    params:
+      required_attributes:
+        - footprint
+        - value
+        - part_number
+
+  - id: unconnected_pins
+    enabled: true
+    severity: warning
+    params:
+      ignore_pin_names: ["NC", "N/C", "DNC"]
+
+  - id: power_net_naming
+    enabled: true
+    severity: warning
+    params:
+      allowed_patterns:
+        - "^VCC_.*"
+        - "^VDD_.*"
+        - "^GND.*"
+        - "^VBAT.*"
+        - "^VIN.*"
+
+  - id: footprint_validation
+    enabled: true
+    severity: error
+
+  - id: net_naming
+    enabled: true
+    severity: info
+    params:
+      forbidden_patterns:
+        - "^N\\d{5,}$"
+
+  - id: single_pin_nets
+    enabled: true
+    severity: warning
+    params:
+      ignore_power_nets: true

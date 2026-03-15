@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0.0",
+  "design_name": "TestBoard",
+  "export_timestamp": "2026-03-15T10:00:00Z",
+  "source_file": "TestBoard.dsn",
+  "components": [
+    {
+      "refdes": "U1",
+      "part_name": "LM1117",
+      "value": "3.3V",
+      "footprint": "SOT-223",
+      "part_number": "LM1117IMPX-3.3",
+      "library": "REGULATORS",
+      "page": "PAGE1",
+      "properties": {
+        "Manufacturer": "Texas Instruments",
+        "Description": "LDO Voltage Regulator"
+      },
+      "pins": [
+        {"number": "1", "name": "GND/ADJ", "type": "PASSIVE", "net": "GND"},
+        {"number": "2", "name": "VOUT", "type": "OUTPUT", "net": "VCC_3V3"},
+        {"number": "3", "name": "VIN", "type": "INPUT", "net": "VIN_5V"}
+      ]
+    },
+    {
+      "refdes": "C1",
+      "part_name": "CAP",
+      "value": "100nF",
+      "footprint": "0402",
+      "part_number": "GRM155R71C104KA88",
+      "library": "PASSIVES",
+      "page": "PAGE1",
+      "properties": {
+        "Manufacturer": "Murata"
+      },
+      "pins": [
+        {"number": "1", "name": "1", "type": "PASSIVE", "net": "VCC_3V3"},
+        {"number": "2", "name": "2", "type": "PASSIVE", "net": "GND"}
+      ]
+    },
+    {
+      "refdes": "R1",
+      "part_name": "RES",
+      "value": "10K",
+      "footprint": "0402",
+      "part_number": "RC0402FR-0710KL",
+      "library": "PASSIVES",
+      "page": "PAGE1",
+      "properties": {
+        "Manufacturer": "Yageo"
+      },
+      "pins": [
+        {"number": "1", "name": "1", "type": "PASSIVE", "net": "VCC_3V3"},
+        {"number": "2", "name": "2", "type": "PASSIVE", "net": "NET_SIG1"}
+      ]
+    },
+    {
+      "refdes": "R1",
+      "part_name": "RES",
+      "value": "4.7K",
+      "footprint": "0402",
+      "part_number": "",
+      "library": "PASSIVES",
+      "page": "PAGE2",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "1", "type": "PASSIVE", "net": "NET_SIG1"},
+        {"number": "2", "name": "2", "type": "PASSIVE", "net": "GND"}
+      ]
+    },
+    {
+      "refdes": "U2",
+      "part_name": "STM32F103",
+      "value": "",
+      "footprint": "",
+      "part_number": "STM32F103C8T6",
+      "library": "MCU",
+      "page": "PAGE2",
+      "properties": {
+        "Manufacturer": "STMicroelectronics"
+      },
+      "pins": [
+        {"number": "1", "name": "VDD", "type": "POWER", "net": "VCC_3V3"},
+        {"number": "2", "name": "PA0", "type": "BIDIRECTIONAL", "net": "NET_SIG1"},
+        {"number": "3", "name": "PA1", "type": "BIDIRECTIONAL", "net": "N00234"},
+        {"number": "4", "name": "NRST", "type": "INPUT", "net": "RESET_N"},
+        {"number": "5", "name": "NC", "type": "PASSIVE", "net": ""},
+        {"number": "6", "name": "VSS", "type": "POWER", "net": "GND"}
+      ]
+    },
+    {
+      "refdes": "C2",
+      "part_name": "CAP",
+      "value": "10uF",
+      "footprint": "0805",
+      "part_number": "",
+      "library": "PASSIVES",
+      "page": "PAGE1",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "1", "type": "PASSIVE", "net": "VIN_5V"},
+        {"number": "2", "name": "2", "type": "PASSIVE", "net": "GND"}
+      ]
+    }
+  ],
+  "nets": [
+    {
+      "name": "VCC_3V3",
+      "is_power": true,
+      "connections": [
+        {"refdes": "U1", "pin_number": "2", "pin_name": "VOUT"},
+        {"refdes": "C1", "pin_number": "1", "pin_name": "1"},
+        {"refdes": "R1", "pin_number": "1", "pin_name": "1"},
+        {"refdes": "U2", "pin_number": "1", "pin_name": "VDD"}
+      ]
+    },
+    {
+      "name": "GND",
+      "is_power": true,
+      "connections": [
+        {"refdes": "U1", "pin_number": "1", "pin_name": "GND/ADJ"},
+        {"refdes": "C1", "pin_number": "2", "pin_name": "2"},
+        {"refdes": "U2", "pin_number": "6", "pin_name": "VSS"},
+        {"refdes": "C2", "pin_number": "2", "pin_name": "2"}
+      ]
+    },
+    {
+      "name": "VIN_5V",
+      "is_power": true,
+      "connections": [
+        {"refdes": "U1", "pin_number": "3", "pin_name": "VIN"},
+        {"refdes": "C2", "pin_number": "1", "pin_name": "1"}
+      ]
+    },
+    {
+      "name": "NET_SIG1",
+      "is_power": false,
+      "connections": [
+        {"refdes": "R1", "pin_number": "2", "pin_name": "2"},
+        {"refdes": "U2", "pin_number": "2", "pin_name": "PA0"}
+      ]
+    },
+    {
+      "name": "N00234",
+      "is_power": false,
+      "connections": [
+        {"refdes": "U2", "pin_number": "3", "pin_name": "PA1"}
+      ]
+    },
+    {
+      "name": "RESET_N",
+      "is_power": false,
+      "connections": [
+        {"refdes": "U2", "pin_number": "4", "pin_name": "NRST"}
+      ]
+    }
+  ],
+  "unconnected_pins": [
+    {"refdes": "U2", "pin_number": "5", "pin_name": "NC"}
+  ],
+  "power_nets": ["VCC_3V3", "GND", "VIN_5V"],
+  "hierarchy": {
+    "top_level": "SCHEMATIC1",
+    "pages": [
+      {"name": "PAGE1", "title": "Power Supply", "page_number": 1},
+      {"name": "PAGE2", "title": "Digital Core", "page_number": 2}
+    ],
+    "hierarchical_blocks": []
+  }
+}
