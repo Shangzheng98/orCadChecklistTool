@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrCAD Capture Design Export",
+  "type": "object",
+  "required": ["schema_version", "design_name", "components", "nets"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "design_name": { "type": "string" },
+    "export_timestamp": { "type": "string" },
+    "source_file": { "type": "string" },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["refdes"],
+        "properties": {
+          "refdes": { "type": "string" },
+          "part_name": { "type": "string" },
+          "value": { "type": "string" },
+          "footprint": { "type": "string" },
+          "part_number": { "type": "string" },
+          "library": { "type": "string" },
+          "page": { "type": "string" },
+          "properties": { "type": "object" },
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["number", "name"],
+              "properties": {
+                "number": { "type": "string" },
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "net": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "nets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "is_power": { "type": "boolean" },
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["refdes", "pin_number"],
+              "properties": {
+                "refdes": { "type": "string" },
+                "pin_number": { "type": "string" },
+                "pin_name": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "unconnected_pins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["refdes", "pin_number"],
+        "properties": {
+          "refdes": { "type": "string" },
+          "pin_number": { "type": "string" },
+          "pin_name": { "type": "string" }
+        }
+      }
+    },
+    "power_nets": { "type": "array", "items": { "type": "string" } },
+    "hierarchy": {
+      "type": "object",
+      "properties": {
+        "top_level": { "type": "string" },
+        "pages": { "type": "array" },
+        "hierarchical_blocks": { "type": "array" }
+      }
+    }
+  }
+}

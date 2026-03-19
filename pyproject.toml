@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orcad-checker"
+version = "0.1.0"
+description = "OrCAD Capture schematic checklist automation tool"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+    "pyyaml>=6.0",
+    "anthropic>=0.40.0",
+    "openai>=1.0.0",
+    "httpx>=0.25.0",
+    "python-multipart>=0.0.6",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "httpx>=0.25.0",
+]
+
+[project.scripts]
+orcad-check = "orcad_checker.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
