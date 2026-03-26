@@ -1,0 +1,44 @@
+[
+  {
+    "title": "OrCAD Capture TCL API - Design Access",
+    "category": "api",
+    "content": "# Design Access API\n\n## GetActiveDesign\nReturns the active design object.\n```tcl\nset design [GetActiveDesign]\n```\n\n## GetDesignName design\nReturns the name of the design.\n```tcl\nset name [GetDesignName $design]\n```\n\n## GetDesignFileName design\nReturns the full file path of the design file (.dsn).\n\n## GetPages design\nReturns a list of all schematic page objects in the design.\n\n## GetName object\nReturns the name of a page, net, or other named object.\n\n## GetPageTitle page\nReturns the title block text of a schematic page.",
+    "tags": ["design", "access", "pages", "basic"]
+  },
+  {
+    "title": "OrCAD Capture TCL API - Component Access",
+    "category": "api",
+    "content": "# Component Access API\n\n## GetPartInsts page\nReturns all part instances on a schematic page.\n```tcl\nset parts [GetPartInsts $page]\n```\n\n## GetPropValue part propertyName\nReturns the value of a property on a part instance.\nCommon properties: Reference, Value, PCB Footprint, Part Name, Part Number, Source Library\n```tcl\nset refdes [GetPropValue $part \"Reference\"]\nset value [GetPropValue $part \"Value\"]\nset fp [GetPropValue $part \"PCB Footprint\"]\n```\n\n## SetPropValue part propertyName value\nSets a property value on a part instance.\n```tcl\nSetPropValue $part \"Value\" \"10K\"\n```\n\n## GetPins part\nReturns all pin objects of a part instance.\n\n## GetPinNumber pin\nReturns the pin number string.\n\n## GetPinName pin\nReturns the pin name string.\n\n## GetPinType pin\nReturns the electrical type (INPUT, OUTPUT, BIDIRECTIONAL, PASSIVE, POWER, etc.).\n\n## GetPinNet pin\nReturns the net name connected to the pin.",
+    "tags": ["component", "part", "property", "pin"]
+  },
+  {
+    "title": "OrCAD Capture TCL API - Net Access",
+    "category": "api",
+    "content": "# Net Access API\n\n## GetFlatNets design\nReturns all flat (non-hierarchical) nets in the design.\n```tcl\nset nets [GetFlatNets $design]\n```\n\n## GetNetName net\nReturns the name of a net.\n\n## GetNetPins net\nReturns all pin objects connected to a net.\n\n## GetPinRefDes pin\nReturns the reference designator of the component owning the pin.\n\n## GetPowerPins page\nReturns all power pin objects on a page.",
+    "tags": ["net", "connection", "power"]
+  },
+  {
+    "title": "OrCAD Capture TCL API - Design Modification",
+    "category": "api",
+    "content": "# Design Modification API\n\n## AddPart page libraryPath partName refdes x y\nAdds a new part instance to a schematic page.\n```tcl\nAddPart $page \"C:/lib/passives.olb\" \"RES\" \"R1\" 100 200\n```\n\n## DeletePart part\nDeletes a part instance from the design.\n\n## AddWire page x1 y1 x2 y2\nDraws a wire between two points on a page.\n\n## AddNetAlias page netName x y\nPlaces a net alias (label) at a position.\n\n## SaveDesign design\nSaves the current design.\n```tcl\nSaveDesign $design\n```",
+    "tags": ["modify", "add", "delete", "wire"]
+  },
+  {
+    "title": "TCL Best Practices for OrCAD Capture",
+    "category": "guide",
+    "content": "# TCL Scripting Best Practices\n\n## 1. Always check for active design\n```tcl\nset design [GetActiveDesign]\nif {$design eq \"\"} {\n    puts \"ERROR: No active design\"\n    return\n}\n```\n\n## 2. Use catch for error handling\n```tcl\nif {[catch {set result [SomeCommand]} err]} {\n    puts \"Error: $err\"\n}\n```\n\n## 3. Close file handles\n```tcl\nset fp [open $filename w]\n# ... write data ...\nclose $fp\n```\n\n## 4. Use proc for reusable functions\n```tcl\nproc findComponent {design refdes} {\n    foreach page [GetPages $design] {\n        foreach part [GetPartInsts $page] {\n            if {[GetPropValue $part \"Reference\"] eq $refdes} {\n                return $part\n            }\n        }\n    }\n    return \"\"\n}\n```\n\n## 5. Iterate safely\n```tcl\n# Always check list is not empty before iterating\nset parts [GetPartInsts $page]\nif {[llength $parts] > 0} {\n    foreach part $parts { ... }\n}\n```",
+    "tags": ["best-practices", "error-handling", "patterns"]
+  },
+  {
+    "title": "Example: BOM Export Script",
+    "category": "example",
+    "content": "# BOM (Bill of Materials) Export Script\n# Exports component data to CSV format\n\nproc export_bom {{filename \"\"}} {\n    set design [GetActiveDesign]\n    if {$design eq \"\"} {\n        puts \"ERROR: No active design\"\n        return\n    }\n\n    if {$filename eq \"\"} {\n        set filename \"[GetDesignName $design]_BOM.csv\"\n    }\n\n    set fp [open $filename w]\n    puts $fp \"RefDes,Part Name,Value,Footprint,Part Number,Manufacturer\"\n\n    set count 0\n    foreach page [GetPages $design] {\n        foreach part [GetPartInsts $page] {\n            set refdes [GetPropValue $part \"Reference\"]\n            set pname [GetPropValue $part \"Part Name\"]\n            set value [GetPropValue $part \"Value\"]\n            set fp_val [GetPropValue $part \"PCB Footprint\"]\n            set pn [GetPropValue $part \"Part Number\"]\n            set mfr [GetPropValue $part \"Manufacturer\"]\n\n            puts $fp \"$refdes,$pname,$value,$fp_val,$pn,$mfr\"\n            incr count\n        }\n    }\n\n    close $fp\n    puts \"Exported $count components to $filename\"\n}\n\nexport_bom",
+    "tags": ["bom", "export", "csv", "complete-example"]
+  },
+  {
+    "title": "Example: Batch Property Update Script",
+    "category": "example",
+    "content": "# Batch Property Update Script\n# Updates a property value for components matching a pattern\n\nproc batch_update_property {refdes_pattern prop_name new_value} {\n    set design [GetActiveDesign]\n    if {$design eq \"\"} {\n        puts \"ERROR: No active design\"\n        return\n    }\n\n    set updated 0\n    foreach page [GetPages $design] {\n        foreach part [GetPartInsts $page] {\n            set refdes [GetPropValue $part \"Reference\"]\n            if {[string match $refdes_pattern $refdes]} {\n                set old_value [GetPropValue $part $prop_name]\n                SetPropValue $part $prop_name $new_value\n                puts \"Updated $refdes: $prop_name '$old_value' -> '$new_value'\"\n                incr updated\n            }\n        }\n    }\n\n    puts \"Updated $updated components\"\n    SaveDesign $design\n}\n\n# Usage examples:\n# batch_update_property \"R*\" \"PCB Footprint\" \"0402\"\n# batch_update_property \"C*\" \"Manufacturer\" \"Murata\"",
+    "tags": ["batch", "update", "property", "complete-example"]
+  }
+]
