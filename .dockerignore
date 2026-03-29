@@ -4,7 +4,6 @@ __pycache__/
 dist/
 build/
 .eggs/
-*.egg
 .env
 .venv/
 venv/
@@ -12,7 +11,8 @@ node_modules/
 frontend/dist/
 .pytest_cache/
 .mypy_cache/
+.git/
+*.db
 *.swp
 *.swo
 .DS_Store
-*.db
