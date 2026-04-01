@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from orcad_checker.engine.registry import discover_checkers, list_checkers
 from orcad_checker.engine.runner import run_checks
@@ -21,9 +22,9 @@ class CheckerInfo(BaseModel):
 
 
 @router.get("/checkers", response_model=list[CheckerInfo])
-def get_checkers():
+async def get_checkers():
     """List all available checkers."""
-    discover_checkers()
+    await run_in_threadpool(discover_checkers)
     checkers = list_checkers()
     return [
         CheckerInfo(
@@ -42,18 +43,9 @@ async def run_check(
     selected_checkers: str = Form(default=""),
 ):
     """Upload a design JSON and run selected checkers."""
-    MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
     content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(413, "File too large (max 50MB)")
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError:
-        raise HTTPException(400, "Invalid JSON format")
-    try:
-        design = parse_design_dict(data)
-    except (ValueError, KeyError) as e:
-        raise HTTPException(400, f"Invalid design format: {str(e)[:200]}")
+    data = json.loads(content)
+    design = parse_design_dict(data)
 
     selected = (
         [s.strip() for s in selected_checkers.split(",") if s.strip()]
@@ -61,5 +53,5 @@ async def run_check(
         else None
     )
 
-    report = run_checks(design, selected_checkers=selected)
+    report = await run_in_threadpool(lambda: run_checks(design, selected_checkers=selected))
     return report
