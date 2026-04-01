@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from orcad_checker.engine.registry import discover_checkers, list_checkers
 from orcad_checker.engine.rule_loader import load_rules
 from orcad_checker.models.design import Design
-from orcad_checker.models.results import Report, ReportSummary, Severity
+from orcad_checker.models.results import Report, ReportSummary, Severity, Status
 
 
 def run_checks(
@@ -52,13 +52,25 @@ def run_checks(
                 cr.severity = Severity(severity_override.upper())
         results.extend(check_results)
 
-    # Build summary
+    # Build summary in a single pass
+    failed_rules: set[str] = set()
+    error_count = warning_count = info_count = 0
+    for r in results:
+        if r.status == Status.FAIL:
+            failed_rules.add(r.rule_id)
+        if r.severity == Severity.ERROR:
+            error_count += 1
+        elif r.severity == Severity.WARNING:
+            warning_count += 1
+        elif r.severity == Severity.INFO:
+            info_count += 1
+
     summary = ReportSummary(
         total_checks=len(checker_ids),
-        passed=sum(1 for cid in checker_ids if not any(r.rule_id == cid for r in results)),
-        errors=sum(1 for r in results if r.severity == Severity.ERROR),
-        warnings=sum(1 for r in results if r.severity == Severity.WARNING),
-        infos=sum(1 for r in results if r.severity == Severity.INFO),
+        passed=len(checker_ids) - len(failed_rules),
+        errors=error_count,
+        warnings=warning_count,
+        infos=info_count,
     )
 
     return Report(

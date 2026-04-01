@@ -1,19 +1,31 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from orcad_checker.store.database import Database
 from orcad_checker.web.routes import agent, checks, clients, knowledge, rules, scripts, summary, tcl_results
 
 app = FastAPI(title="OrCAD Checker", version="0.2.0")
 
+allowed_origins = [
+    o.strip() for o in os.environ.get(
+        "ALLOWED_ORIGINS", "http://localhost:8080,http://localhost:3000"
+    ).split(",")
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+
+app.state.db = Database()
 
 app.include_router(checks.router)
 app.include_router(rules.router)

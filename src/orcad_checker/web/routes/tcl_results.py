@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/check-results", tags=["tcl-results"])
@@ -40,7 +40,7 @@ class UploadResponse(BaseModel):
 
 
 # In-memory store for recent uploads (production: use DB)
-_recent_results: list[dict] = []
+_recent_results: dict[str, dict] = {}
 MAX_HISTORY = 100
 
 
@@ -60,9 +60,10 @@ def upload_tcl_results(data: TclResultUpload):
         "timestamp": timestamp,
         "results": [r.model_dump() for r in data.results],
     }
-    _recent_results.append(record)
+    _recent_results[result_id] = record
     if len(_recent_results) > MAX_HISTORY:
-        _recent_results.pop(0)
+        oldest_key = min(_recent_results, key=lambda k: _recent_results[k]["timestamp"])
+        del _recent_results[oldest_key]
 
     return UploadResponse(
         result_id=result_id,
@@ -77,13 +78,13 @@ def upload_tcl_results(data: TclResultUpload):
 @router.get("/history")
 def get_result_history(limit: int = 20):
     """Get recent TCL check result uploads."""
-    return _recent_results[-limit:]
+    sorted_results = sorted(_recent_results.values(), key=lambda r: r["timestamp"], reverse=True)
+    return sorted_results[:limit]
 
 
 @router.get("/{result_id}")
 def get_result(result_id: str):
     """Get a specific result by ID."""
-    for r in _recent_results:
-        if r["result_id"] == result_id:
-            return r
-    return {"error": "Not found"}
+    if result_id not in _recent_results:
+        raise HTTPException(404, "Result not found")
+    return _recent_results[result_id]

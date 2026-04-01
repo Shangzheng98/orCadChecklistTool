@@ -1,20 +1,22 @@
 """AI Agent API — conversational TCL script generation."""
 from __future__ import annotations
 
+import logging
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from orcad_checker.ai.tcl_agent import chat_with_agent, extract_tcl_code
 from orcad_checker.models.scripts import AgentMessage, ScriptCategory, ScriptMeta
 from orcad_checker.store.database import Database
+from orcad_checker.web.deps import get_db
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
-_db = Database()
+logger = logging.getLogger(__name__)
 
-# In-memory session store (for simplicity; could be Redis/DB for production)
+MAX_SESSIONS = 200
 _sessions: dict[str, list[AgentMessage]] = {}
 
 
@@ -40,23 +42,30 @@ class SaveScriptRequest(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def agent_chat(req: ChatRequest):
+async def agent_chat(req: ChatRequest, db: Database = Depends(get_db)):
     session_id = req.session_id or str(uuid.uuid4())[:8]
 
-    # Get or create session
+    # Get or create session with eviction
     if session_id not in _sessions:
+        if len(_sessions) >= MAX_SESSIONS:
+            oldest_key = next(iter(_sessions))
+            del _sessions[oldest_key]
         _sessions[session_id] = []
 
     messages = _sessions[session_id]
     messages.append(AgentMessage(role="user", content=req.message))
 
     try:
-        reply = await chat_with_agent(messages, db=_db)
+        reply = await chat_with_agent(messages, db=db)
+    except ValueError as e:
+        logger.warning("Invalid input for session %s: %s", session_id, e)
+        raise HTTPException(400, str(e))
+    except TimeoutError as e:
+        logger.error("AI timeout for session %s: %s", session_id, e)
+        raise HTTPException(504, "AI service timeout")
     except Exception as e:
-        return ChatResponse(
-            session_id=session_id,
-            reply=f"Error: {e}",
-        )
+        logger.exception("Unexpected error in agent_chat for session %s", session_id)
+        raise HTTPException(500, "Internal server error")
 
     messages.append(AgentMessage(role="assistant", content=reply))
 
@@ -70,11 +79,10 @@ async def agent_chat(req: ChatRequest):
 
 
 @router.post("/save")
-def save_generated_script(req: SaveScriptRequest):
+def save_generated_script(req: SaveScriptRequest, db: Database = Depends(get_db)):
     """Save the generated script from an agent session to the script repository."""
     code = req.code
     if not code and req.session_id in _sessions:
-        # Extract code from the last assistant message
         for msg in reversed(_sessions[req.session_id]):
             if msg.role == "assistant":
                 code = extract_tcl_code(msg.content)
@@ -82,13 +90,13 @@ def save_generated_script(req: SaveScriptRequest):
                     break
 
     if not code:
-        return {"error": "No TCL code found to save"}
+        raise HTTPException(400, "No TCL code found to save")
 
     meta = ScriptMeta(
         name=req.name, description=req.description,
         category=req.category, author=req.author, tags=req.tags,
     )
-    result = _db.create_script(meta, code)
+    result = db.create_script(meta, code)
     return result
 
 

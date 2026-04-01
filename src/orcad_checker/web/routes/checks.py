@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from orcad_checker.engine.registry import discover_checkers, list_checkers
@@ -42,9 +42,18 @@ async def run_check(
     selected_checkers: str = Form(default=""),
 ):
     """Upload a design JSON and run selected checkers."""
+    MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
     content = await file.read()
-    data = json.loads(content)
-    design = parse_design_dict(data)
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(413, "File too large (max 50MB)")
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Invalid JSON format")
+    try:
+        design = parse_design_dict(data)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, f"Invalid design format: {str(e)[:200]}")
 
     selected = (
         [s.strip() for s in selected_checkers.split(",") if s.strip()]
