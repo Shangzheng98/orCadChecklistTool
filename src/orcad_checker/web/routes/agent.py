@@ -3,19 +3,18 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from orcad_checker.ai.tcl_agent import chat_with_agent, extract_tcl_code
 from orcad_checker.models.scripts import AgentMessage, ScriptCategory, ScriptMeta
 from orcad_checker.store.database import Database
+from orcad_checker.web.deps import get_db
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
-_db = Database()
-
-# In-memory session store (for simplicity; could be Redis/DB for production)
-_sessions: dict[str, list[AgentMessage]] = {}
+MAX_SESSIONS = 200
 
 
 class ChatRequest(BaseModel):
@@ -40,18 +39,23 @@ class SaveScriptRequest(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def agent_chat(req: ChatRequest):
+async def agent_chat(req: ChatRequest, db: Database = Depends(get_db)):
     session_id = req.session_id or str(uuid.uuid4())[:8]
 
-    # Get or create session
-    if session_id not in _sessions:
-        _sessions[session_id] = []
+    # Get or create session from DB
+    raw_messages = await run_in_threadpool(db.get_session, session_id)
+    if raw_messages is None:
+        # Evict oldest if at capacity
+        count = await run_in_threadpool(db.count_sessions)
+        if count >= MAX_SESSIONS:
+            await run_in_threadpool(db.delete_oldest_session)
+        raw_messages = []
 
-    messages = _sessions[session_id]
+    messages = [AgentMessage(**m) for m in raw_messages]
     messages.append(AgentMessage(role="user", content=req.message))
 
     try:
-        reply = await chat_with_agent(messages, db=_db)
+        reply = await chat_with_agent(messages, db=db)
     except Exception as e:
         return ChatResponse(
             session_id=session_id,
@@ -59,6 +63,11 @@ async def agent_chat(req: ChatRequest):
         )
 
     messages.append(AgentMessage(role="assistant", content=reply))
+
+    # Persist session
+    await run_in_threadpool(
+        db.save_session, session_id, [m.model_dump() for m in messages]
+    )
 
     code = extract_tcl_code(reply)
 
@@ -70,16 +79,17 @@ async def agent_chat(req: ChatRequest):
 
 
 @router.post("/save")
-def save_generated_script(req: SaveScriptRequest):
+async def save_generated_script(req: SaveScriptRequest, db: Database = Depends(get_db)):
     """Save the generated script from an agent session to the script repository."""
     code = req.code
-    if not code and req.session_id in _sessions:
-        # Extract code from the last assistant message
-        for msg in reversed(_sessions[req.session_id]):
-            if msg.role == "assistant":
-                code = extract_tcl_code(msg.content)
-                if code:
-                    break
+    if not code:
+        raw_messages = await run_in_threadpool(db.get_session, req.session_id)
+        if raw_messages:
+            for msg_data in reversed(raw_messages):
+                if msg_data.get("role") == "assistant":
+                    code = extract_tcl_code(msg_data.get("content", ""))
+                    if code:
+                        break
 
     if not code:
         return {"error": "No TCL code found to save"}
@@ -88,17 +98,20 @@ def save_generated_script(req: SaveScriptRequest):
         name=req.name, description=req.description,
         category=req.category, author=req.author, tags=req.tags,
     )
-    result = _db.create_script(meta, code)
+    result = await run_in_threadpool(db.create_script, meta, code)
     return result
 
 
 @router.get("/sessions/{session_id}")
-def get_session(session_id: str):
-    messages = _sessions.get(session_id, [])
+async def get_session(session_id: str, db: Database = Depends(get_db)):
+    raw_messages = await run_in_threadpool(db.get_session, session_id)
+    messages = raw_messages if raw_messages is not None else []
     return {"session_id": session_id, "messages": messages}
 
 
 @router.delete("/sessions/{session_id}")
-def clear_session(session_id: str):
-    _sessions.pop(session_id, None)
+async def clear_session(session_id: str, db: Database = Depends(get_db)):
+    # Delete by saving empty or just let it be — simplest: delete via direct SQL
+    # For now, save an empty list to effectively clear
+    await run_in_threadpool(db.save_session, session_id, [])
     return {"status": "cleared"}

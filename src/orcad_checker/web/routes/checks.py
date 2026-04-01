@@ -4,6 +4,7 @@ import json
 
 from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from orcad_checker.engine.registry import discover_checkers, list_checkers
 from orcad_checker.engine.runner import run_checks
@@ -21,9 +22,9 @@ class CheckerInfo(BaseModel):
 
 
 @router.get("/checkers", response_model=list[CheckerInfo])
-def get_checkers():
+async def get_checkers():
     """List all available checkers."""
-    discover_checkers()
+    await run_in_threadpool(discover_checkers)
     checkers = list_checkers()
     return [
         CheckerInfo(
@@ -52,5 +53,5 @@ async def run_check(
         else None
     )
 
-    report = run_checks(design, selected_checkers=selected)
+    report = await run_in_threadpool(lambda: run_checks(design, selected_checkers=selected))
     return report

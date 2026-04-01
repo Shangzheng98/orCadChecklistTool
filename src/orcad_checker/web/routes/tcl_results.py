@@ -4,10 +4,16 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
+
+from orcad_checker.store.database import Database
+from orcad_checker.web.deps import get_db
 
 router = APIRouter(prefix="/api/v1/check-results", tags=["tcl-results"])
+
+MAX_HISTORY = 100
 
 
 class TclFinding(BaseModel):
@@ -39,13 +45,8 @@ class UploadResponse(BaseModel):
     warnings: int
 
 
-# In-memory store for recent uploads (production: use DB)
-_recent_results: list[dict] = []
-MAX_HISTORY = 100
-
-
 @router.post("/upload", response_model=UploadResponse)
-def upload_tcl_results(data: TclResultUpload):
+async def upload_tcl_results(data: TclResultUpload, db: Database = Depends(get_db)):
     """Receive check results from the OrCAD TCL client."""
     result_id = str(uuid.uuid4())[:8]
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -53,16 +54,16 @@ def upload_tcl_results(data: TclResultUpload):
     errors = sum(1 for r in data.results if r.status == "FAIL" and r.severity == "ERROR")
     warnings = sum(1 for r in data.results if r.status == "FAIL" and r.severity == "WARNING")
 
-    record = {
-        "result_id": result_id,
-        "design_name": data.design_name,
-        "source": data.source,
-        "timestamp": timestamp,
-        "results": [r.model_dump() for r in data.results],
-    }
-    _recent_results.append(record)
-    if len(_recent_results) > MAX_HISTORY:
-        _recent_results.pop(0)
+    results_data = [r.model_dump() for r in data.results]
+
+    await run_in_threadpool(
+        db.save_tcl_result, result_id, data.design_name, data.source, timestamp, results_data
+    )
+
+    # Evict oldest if over capacity
+    result_count = len(await run_in_threadpool(db.list_tcl_results, MAX_HISTORY + 1))
+    if result_count > MAX_HISTORY:
+        await run_in_threadpool(db.evict_oldest_tcl_result)
 
     return UploadResponse(
         result_id=result_id,
@@ -75,15 +76,15 @@ def upload_tcl_results(data: TclResultUpload):
 
 
 @router.get("/history")
-def get_result_history(limit: int = 20):
+async def get_result_history(limit: int = 20, db: Database = Depends(get_db)):
     """Get recent TCL check result uploads."""
-    return _recent_results[-limit:]
+    return await run_in_threadpool(db.list_tcl_results, limit)
 
 
 @router.get("/{result_id}")
-def get_result(result_id: str):
+async def get_result(result_id: str, db: Database = Depends(get_db)):
     """Get a specific result by ID."""
-    for r in _recent_results:
-        if r["result_id"] == result_id:
-            return r
-    return {"error": "Not found"}
+    result = await run_in_threadpool(db.get_tcl_result, result_id)
+    if not result:
+        return {"error": "Not found"}
+    return result

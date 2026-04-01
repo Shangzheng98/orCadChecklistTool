@@ -14,15 +14,17 @@ class NetNamingChecker(BaseChecker):
     description = "Checks for auto-generated net names that should be given meaningful names"
     default_severity = "INFO"
 
-    def check(self, design: Design) -> list[CheckResult]:
+    def __init__(self, config: dict | None = None):
+        super().__init__(config)
         forbidden = self.config.get("forbidden_patterns", DEFAULT_FORBIDDEN)
-        patterns = [re.compile(p) for p in forbidden]
+        self._patterns = [re.compile(p) for p in forbidden]
 
+    def check(self, design: Design) -> list[CheckResult]:
         findings = []
         for net in design.nets:
             if net.is_power:
                 continue
-            if any(p.match(net.name) for p in patterns):
+            if any(p.match(net.name) for p in self._patterns):
                 findings.append(Finding(
                     message=f"Net '{net.name}' appears to be auto-generated, consider giving it a meaningful name",
                     net=net.name,
