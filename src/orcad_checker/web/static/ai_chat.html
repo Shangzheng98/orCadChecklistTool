@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OrCAD AI Assistant</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
+.header { background: #2c3e50; color: white; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 18px; font-weight: 500; }
+.header .session-info { font-size: 12px; color: #95a5a6; }
+.header button { background: #3498db; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.header button:hover { background: #2980b9; }
+.chat-area { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.message { margin-bottom: 16px; display: flex; flex-direction: column; }
+.message.user { align-items: flex-end; }
+.message.ai { align-items: flex-start; }
+.message .bubble { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.message.user .bubble { background: #3498db; color: white; border-bottom-right-radius: 4px; }
+.message.ai .bubble { background: white; color: #2c3e50; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.message .label { font-size: 11px; color: #95a5a6; margin-bottom: 4px; }
+.code-block { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; margin: 8px 0; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; overflow-x: auto; position: relative; }
+.code-block .copy-btn { position: absolute; top: 6px; right: 6px; background: #555; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+.code-block .copy-btn:hover { background: #777; }
+.input-area { background: white; border-top: 1px solid #e0e0e0; padding: 12px 20px; display: flex; gap: 10px; align-items: flex-end; }
+.input-area textarea { flex: 1; resize: none; border: 1px solid #ddd; border-radius: 8px; padding: 10px 14px; font-size: 14px; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; line-height: 1.5; max-height: 120px; outline: none; }
+.input-area textarea:focus { border-color: #3498db; }
+.input-area button { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+.input-area button:hover { background: #2980b9; }
+.input-area button:disabled { background: #bdc3c7; cursor: not-allowed; }
+.typing { color: #95a5a6; font-style: italic; padding: 8px 0; }
+.error { color: #e74c3c; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>OrCAD AI Assistant</h1>
+        <div class="session-info" id="sessionInfo">New Session</div>
+    </div>
+    <button onclick="newSession()">New Session</button>
+</div>
+
+<div class="chat-area" id="chatArea"></div>
+
+<div class="input-area">
+    <textarea id="msgInput" rows="1" placeholder="Type your message... (Enter to send, Shift+Enter for newline)"
+        oninput="autoResize(this)"></textarea>
+    <button id="sendBtn" onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let sessionId = '';
+let sending = false;
+
+const chatArea = document.getElementById('chatArea');
+const msgInput = document.getElementById('msgInput');
+const sendBtn = document.getElementById('sendBtn');
+const sessionInfo = document.getElementById('sessionInfo');
+
+msgInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function newSession() {
+    sessionId = '';
+    chatArea.innerHTML = '';
+    sessionInfo.textContent = 'New Session';
+    msgInput.focus();
+}
+
+function addMessage(role, content) {
+    const div = document.createElement('div');
+    div.className = 'message ' + (role === 'user' ? 'user' : 'ai');
+
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = role === 'user' ? 'You' : 'AI Assistant';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+
+    if (role === 'ai') {
+        bubble.innerHTML = formatAIResponse(content);
+    } else {
+        bubble.textContent = content;
+    }
+
+    div.appendChild(label);
+    div.appendChild(bubble);
+    chatArea.appendChild(div);
+    chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function formatAIResponse(text) {
+    // Extract code blocks and format them
+    const parts = text.split(/(```[\s\S]*?```)/g);
+    let html = '';
+    for (const part of parts) {
+        if (part.startsWith('```')) {
+            const code = part.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
+            const id = 'code_' + Math.random().toString(36).substr(2, 6);
+            html += '<div class="code-block" id="' + id + '">' +
+                '<button class="copy-btn" onclick="copyCode(\'' + id + '\')">Copy</button>' +
+                escapeHtml(code) + '</div>';
+        } else {
+            html += escapeHtml(part);
+        }
+    }
+    return html;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function copyCode(id) {
+    const el = document.getElementById(id);
+    const btn = el.querySelector('.copy-btn');
+    const text = el.textContent.replace('Copy', '').trim();
+    navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 1500);
+    });
+}
+
+async function sendMessage() {
+    const msg = msgInput.value.trim();
+    if (!msg || sending) return;
+
+    sending = true;
+    sendBtn.disabled = true;
+    msgInput.value = '';
+    msgInput.style.height = 'auto';
+
+    addMessage('user', msg);
+
+    // Show typing indicator
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'typing';
+    typingDiv.textContent = 'AI is thinking...';
+    chatArea.appendChild(typingDiv);
+    chatArea.scrollTop = chatArea.scrollHeight;
+
+    try {
+        const resp = await fetch(API_BASE + '/api/v1/agent/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, message: msg })
+        });
+
+        chatArea.removeChild(typingDiv);
+
+        if (!resp.ok) throw new Error('Server error: ' + resp.status);
+
+        const data = await resp.json();
+        sessionId = data.session_id;
+        sessionInfo.textContent = 'Session: ' + sessionId;
+
+        addMessage('ai', data.reply);
+
+        if (data.extracted_code) {
+            addCodeAction(data.extracted_code);
+        }
+    } catch (err) {
+        chatArea.removeChild(typingDiv);
+        addMessage('ai', 'Error: ' + err.message);
+    }
+
+    sending = false;
+    sendBtn.disabled = false;
+    msgInput.focus();
+}
+
+function addCodeAction(code) {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding: 8px 20px; display: flex; gap: 8px;';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = 'Copy TCL Code';
+    copyBtn.style.cssText = 'background: #27ae60; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;';
+    copyBtn.onclick = () => {
+        navigator.clipboard.writeText(code).then(() => {
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => copyBtn.textContent = 'Copy TCL Code', 1500);
+        });
+    };
+
+    const sendBtn = document.createElement('button');
+    sendBtn.textContent = 'Send to OrCAD';
+    sendBtn.style.cssText = 'background: #e67e22; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;';
+    sendBtn.onclick = async () => {
+        try {
+            const resp = await fetch(API_BASE + '/api/v1/agent/clipboard', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code, description: 'AI generated script' })
+            });
+            if (resp.ok) {
+                sendBtn.textContent = 'Sent! Click "Fetch" in OrCAD';
+                sendBtn.style.background = '#95a5a6';
+                setTimeout(() => {
+                    sendBtn.textContent = 'Send to OrCAD';
+                    sendBtn.style.background = '#e67e22';
+                }, 3000);
+            }
+        } catch (e) {
+            sendBtn.textContent = 'Failed!';
+            setTimeout(() => sendBtn.textContent = 'Send to OrCAD', 1500);
+        }
+    };
+
+    div.appendChild(copyBtn);
+    div.appendChild(sendBtn);
+    chatArea.appendChild(div);
+    chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+msgInput.focus();
+</script>
+</body>
+</html>
