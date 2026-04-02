@@ -29,8 +29,14 @@ if {![info exists ::server_url]} {
 
 puts "Loading OrCAD Checker Tool..."
 
+# Load DBO API adapter (must be first)
+source [file join $_orcad_checker_root lib orcad_api.tcl]
+
 # Load check engine
 source [file join $_orcad_checker_root engine check_engine.tcl]
+
+# Load shared checker utilities
+source [file join $_orcad_checker_root lib checker_utils.tcl]
 
 # Load all checkers
 source [file join $_orcad_checker_root checkers load_all.tcl]
@@ -42,7 +48,7 @@ source [file join $_orcad_checker_root engine http_client.tcl]
 source [file join $_orcad_checker_root gui main_window.tcl]
 
 puts "OrCAD Checker Tool loaded."
-puts "  - 7 checkers available"
+puts "  - 19 checkers available"
 puts "  - Server: $::server_url"
 puts ""
 puts "Commands:"

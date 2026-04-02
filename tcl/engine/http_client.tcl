@@ -4,8 +4,13 @@
 # ============================================================================
 
 package require http
-package require tls
-http::register https 443 [list ::tls::socket -autoservername true]
+
+# TLS support: only load if available (not bundled in OrCAD's Tcl)
+set _has_tls [catch {package require tls}]
+if {$_has_tls == 0} {
+    http::register https 443 [list ::tls::socket -autoservername true]
+}
+unset _has_tls
 
 # Default server URL
 if {![info exists ::server_url]} {

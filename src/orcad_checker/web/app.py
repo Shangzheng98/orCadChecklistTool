@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from orcad_checker.store.database import Database
 from orcad_checker.web.routes import agent, checks, clients, knowledge, rules, scripts, summary, tcl_results
@@ -35,6 +36,15 @@ app.include_router(knowledge.router)
 app.include_router(clients.router)
 app.include_router(agent.router)
 app.include_router(tcl_results.router)
+
+# AI chat page (standalone HTML, no build needed)
+_static_dir = Path(__file__).parent / "static"
+
+
+@app.get("/ai-chat")
+async def ai_chat_page():
+    return FileResponse(str(_static_dir / "ai_chat.html"))
+
 
 # Serve Vue 2 frontend static files if built
 frontend_dist = Path(__file__).parent.parent.parent.parent / "frontend" / "dist"

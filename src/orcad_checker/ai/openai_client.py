@@ -22,13 +22,18 @@ class OpenAICompatibleClient(BaseLLMClient):
         )
         self.model = os.environ.get("OPENAI_MODEL", "default")
 
-    async def chat(self, system_prompt: str, user_message: str) -> str:
+    async def chat(
+        self,
+        system_prompt: str,
+        user_message: str,
+        messages: list[dict] | None = None,
+    ) -> str:
+        if messages is None:
+            messages = [{"role": "user", "content": user_message}]
+        api_messages = [{"role": "system", "content": system_prompt}] + messages
         response = await self.client.chat.completions.create(
             model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            max_tokens=2048,
+            messages=api_messages,
+            max_tokens=4096,
         )
         return response.choices[0].message.content

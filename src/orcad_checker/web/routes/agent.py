@@ -16,6 +16,35 @@ router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
 MAX_SESSIONS = 200
 
+# In-memory clipboard for passing code from browser to OrCAD
+_tcl_clipboard: dict = {"code": "", "description": ""}
+
+
+class ClipboardRequest(BaseModel):
+    code: str
+    description: str = ""
+
+
+@router.post("/clipboard")
+async def set_clipboard(req: ClipboardRequest):
+    """Browser sends generated TCL code here."""
+    _tcl_clipboard["code"] = req.code
+    _tcl_clipboard["description"] = req.description
+    return {"status": "ok"}
+
+
+@router.get("/clipboard")
+async def get_clipboard():
+    """OrCAD fetches the code from here."""
+    return _tcl_clipboard
+
+
+@router.delete("/clipboard")
+async def clear_clipboard():
+    _tcl_clipboard["code"] = ""
+    _tcl_clipboard["description"] = ""
+    return {"status": "cleared"}
+
 
 class ChatRequest(BaseModel):
     session_id: str = ""

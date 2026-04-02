@@ -5,12 +5,13 @@
 # ============================================================================
 
 package require Tk
+catch {wm withdraw .}
 
 # ── Main Window ──────────────────────────────────────────────
 
 proc orcad_checker_gui {} {
     # Prevent duplicate windows
-    if {[winfo exists .orcad_checker]} {
+    if {![catch {winfo exists .orcad_checker} result] && $result} {
         raise .orcad_checker
         return
     }
@@ -55,81 +56,157 @@ proc set_status {msg} {
 # ============================================================================
 
 proc build_check_tab {parent} {
-    # ── Checker selection ────────────────────────────────────
-    ttk::labelframe $parent.sel -text "Select Checks"
-    pack $parent.sel -fill x -padx 5 -pady 5
-
+    # ── Initialize checker variables ────────────────────────
+    # P0
     set ::chk_duplicate_refdes 1
+    set ::chk_footprint_validation 1
+    set ::chk_decoupling_caps 1
+    set ::chk_unused_pin_handling 1
+    set ::chk_esd_protection 1
+    # P1
     set ::chk_missing_attributes 1
     set ::chk_unconnected_pins 1
-    set ::chk_footprint_validation 1
     set ::chk_power_net_naming 1
-    set ::chk_net_naming 1
     set ::chk_single_pin_nets 1
+    set ::chk_i2c_pullups 1
+    set ::chk_crystal_load_caps 1
+    set ::chk_reset_pin 1
+    set ::chk_test_points 1
+    set ::chk_power_voltage_label 1
+    # P2
+    set ::chk_net_naming 1
+    set ::chk_impedance_matching 1
+    set ::chk_standard_values 1
+    set ::chk_thermal_pad 1
+    set ::chk_connector_pinout 1
+
+    # ── Horizontal paned window (left: results, right: checklist)
+    ttk::panedwindow $parent.pw -orient horizontal
+    pack $parent.pw -fill both -expand 1 -padx 5 -pady 5
+
+    # ── Left panel: Results display ─────────────────────────
+    ttk::frame $parent.pw.left
+    $parent.pw add $parent.pw.left -weight 3
+
+    ttk::label $parent.pw.left.title -text "Results" -font {Arial 11 bold}
+    pack $parent.pw.left.title -anchor w -padx 5 -pady {5 2}
+
+    ttk::frame $parent.pw.left.rf
+    pack $parent.pw.left.rf -fill both -expand 1 -padx 5 -pady {0 5}
+
+    text $parent.pw.left.rf.txt -wrap word \
+        -yscrollcommand [list $parent.pw.left.rf.sb set] \
+        -font {Consolas 10} -state disabled
+    ttk::scrollbar $parent.pw.left.rf.sb -orient vertical \
+        -command [list $parent.pw.left.rf.txt yview]
+
+    pack $parent.pw.left.rf.sb -side right -fill y
+    pack $parent.pw.left.rf.txt -fill both -expand 1
+
+    # Tag colors for results (P0-P3 priority)
+    $parent.pw.left.rf.txt tag configure pass -foreground "#27ae60"
+    $parent.pw.left.rf.txt tag configure fail_p0 -foreground "#e74c3c" -font {Consolas 10 bold}
+    $parent.pw.left.rf.txt tag configure fail_p1 -foreground "#e67e22" -font {Consolas 10 bold}
+    $parent.pw.left.rf.txt tag configure fail_p2 -foreground "#3498db"
+    $parent.pw.left.rf.txt tag configure fail_p3 -foreground "#95a5a6"
+    $parent.pw.left.rf.txt tag configure header -font {Consolas 11 bold}
+    $parent.pw.left.rf.txt tag configure finding -foreground "#555555" -lmargin1 30
+
+    # ── Right panel: Checklist ──────────────────────────────
+    ttk::frame $parent.pw.right
+    $parent.pw add $parent.pw.right -weight 2
+
+    ttk::label $parent.pw.right.title -text "Checklist" -font {Arial 11 bold}
+    pack $parent.pw.right.title -anchor w -padx 5 -pady {5 2}
+
+    # Select All / Deselect All at top
+    ttk::frame $parent.pw.right.selbtns
+    pack $parent.pw.right.selbtns -fill x -padx 5 -pady {0 5}
+
+    ttk::button $parent.pw.right.selbtns.all -text "Select All" \
+        -command gui_select_all
+    ttk::button $parent.pw.right.selbtns.none -text "Deselect All" \
+        -command gui_deselect_all
+    pack $parent.pw.right.selbtns.all $parent.pw.right.selbtns.none \
+        -side left -padx {0 5}
+
+    # Scrollable checklist area (19 items need scroll)
+    canvas $parent.pw.right.cvs -highlightthickness 0
+    ttk::scrollbar $parent.pw.right.csb -orient vertical \
+        -command [list $parent.pw.right.cvs yview]
+    $parent.pw.right.cvs configure -yscrollcommand [list $parent.pw.right.csb set]
+
+    pack $parent.pw.right.csb -side right -fill y
+    pack $parent.pw.right.cvs -fill both -expand 1 -padx 5
+
+    ttk::frame $parent.pw.right.cvs.checks
+    $parent.pw.right.cvs create window 0 0 -anchor nw \
+        -window $parent.pw.right.cvs.checks -tags checkwin
 
     set row 0
     foreach {var label} {
-        chk_duplicate_refdes    "Duplicate RefDes (ERROR)"
-        chk_missing_attributes  "Missing Attributes (WARNING)"
-        chk_unconnected_pins    "Unconnected Pins (WARNING)"
-        chk_footprint_validation "Footprint Validation (ERROR)"
-        chk_power_net_naming    "Power Net Naming (WARNING)"
-        chk_net_naming          "Net Naming (INFO)"
-        chk_single_pin_nets     "Single Pin Nets (WARNING)"
+        chk_duplicate_refdes      "P0 Duplicate RefDes"
+        chk_footprint_validation  "P0 Footprint Validation"
+        chk_decoupling_caps       "P0 Decoupling Capacitors"
+        chk_unused_pin_handling   "P0 Unused Pin Handling"
+        chk_esd_protection        "P0 ESD Protection"
+        chk_missing_attributes    "P1 Missing Attributes"
+        chk_unconnected_pins      "P1 Unconnected Pins"
+        chk_power_net_naming      "P1 Power Net Naming"
+        chk_single_pin_nets       "P1 Single Pin Nets"
+        chk_i2c_pullups           "P1 I2C Pull-ups"
+        chk_crystal_load_caps     "P1 Crystal Load Caps"
+        chk_reset_pin             "P1 Reset Pin Circuit"
+        chk_test_points           "P1 Test Points"
+        chk_power_voltage_label   "P1 Power Voltage Labels"
+        chk_net_naming            "P2 Net Naming"
+        chk_impedance_matching    "P2 Impedance Matching"
+        chk_standard_values       "P2 Standard R/C Values"
+        chk_thermal_pad           "P2 Thermal Pad Connection"
+        chk_connector_pinout      "P2 Connector Pinout"
     } {
-        ttk::checkbutton $parent.sel.cb$row -text $label -variable ::$var
-        grid $parent.sel.cb$row -row [expr {$row / 2}] -column [expr {$row % 2}] \
-            -sticky w -padx 10 -pady 2
+        ttk::checkbutton $parent.pw.right.cvs.checks.cb$row \
+            -text $label -variable ::$var
+        pack $parent.pw.right.cvs.checks.cb$row -anchor w -pady 1
         incr row
     }
 
-    # ── Buttons ──────────────────────────────────────────────
-    ttk::frame $parent.btn
-    pack $parent.btn -fill x -padx 5 -pady 5
+    # Update scroll region when frame is resized
+    bind $parent.pw.right.cvs.checks <Configure> \
+        [list $parent.pw.right.cvs configure -scrollregion \
+            [list 0 0 [list %w] [list %h]]]
 
-    ttk::button $parent.btn.run -text "Run Checks" -command [list gui_run_checks $parent]
-    ttk::button $parent.btn.all -text "Select All" -command gui_select_all
-    ttk::button $parent.btn.none -text "Deselect All" -command gui_deselect_all
-    ttk::button $parent.btn.upload -text "Upload to Server" \
+    # Run and Upload buttons at bottom
+    ttk::frame $parent.pw.right.actions
+    pack $parent.pw.right.actions -fill x -padx 5 -pady {10 5} -side bottom
+
+    ttk::button $parent.pw.right.actions.run -text "Run Selected" \
+        -command [list gui_run_checks $parent]
+    ttk::button $parent.pw.right.actions.upload -text "Upload to Server" \
         -command [list gui_upload_results] -state disabled
 
-    pack $parent.btn.run $parent.btn.all $parent.btn.none $parent.btn.upload \
-        -side left -padx 5
+    pack $parent.pw.right.actions.run -fill x -pady {0 5}
+    pack $parent.pw.right.actions.upload -fill x
+}
 
-    # ── Results display ──────────────────────────────────────
-    ttk::labelframe $parent.results -text "Results"
-    pack $parent.results -fill both -expand 1 -padx 5 -pady 5
-
-    text $parent.results.txt -wrap word -height 15 \
-        -yscrollcommand [list $parent.results.sb set] \
-        -font {Consolas 10} -state disabled
-    ttk::scrollbar $parent.results.sb -orient vertical \
-        -command [list $parent.results.txt yview]
-
-    pack $parent.results.sb -side right -fill y
-    pack $parent.results.txt -fill both -expand 1
-
-    # Tag colors for results
-    $parent.results.txt tag configure pass -foreground "#27ae60"
-    $parent.results.txt tag configure fail_error -foreground "#e74c3c" -font {Consolas 10 bold}
-    $parent.results.txt tag configure fail_warning -foreground "#f39c12"
-    $parent.results.txt tag configure fail_info -foreground "#3498db"
-    $parent.results.txt tag configure header -font {Consolas 11 bold}
-    $parent.results.txt tag configure finding -foreground "#555555" -lmargin1 30
+proc _all_checker_vars {} {
+    return {chk_duplicate_refdes chk_footprint_validation
+        chk_decoupling_caps chk_unused_pin_handling chk_esd_protection
+        chk_missing_attributes chk_unconnected_pins chk_power_net_naming
+        chk_single_pin_nets chk_i2c_pullups chk_crystal_load_caps
+        chk_reset_pin chk_test_points chk_power_voltage_label
+        chk_net_naming chk_impedance_matching chk_standard_values
+        chk_thermal_pad chk_connector_pinout}
 }
 
 proc gui_select_all {} {
-    foreach var {chk_duplicate_refdes chk_missing_attributes chk_unconnected_pins
-                 chk_footprint_validation chk_power_net_naming chk_net_naming
-                 chk_single_pin_nets} {
+    foreach var [_all_checker_vars] {
         set ::$var 1
     }
 }
 
 proc gui_deselect_all {} {
-    foreach var {chk_duplicate_refdes chk_missing_attributes chk_unconnected_pins
-                 chk_footprint_validation chk_power_net_naming chk_net_naming
-                 chk_single_pin_nets} {
+    foreach var [_all_checker_vars] {
         set ::$var 0
     }
 }
@@ -148,13 +225,25 @@ proc gui_run_checks {parent} {
     # Build checker list from checkboxes
     set checkers [list]
     set map {
-        chk_duplicate_refdes    check_duplicate_refdes
-        chk_missing_attributes  check_missing_attributes
-        chk_unconnected_pins    check_unconnected_pins
-        chk_footprint_validation check_footprint_validation
-        chk_power_net_naming    check_power_net_naming
-        chk_net_naming          check_net_naming
-        chk_single_pin_nets     check_single_pin_nets
+        chk_duplicate_refdes      check_duplicate_refdes
+        chk_footprint_validation  check_footprint_validation
+        chk_decoupling_caps       check_decoupling_caps
+        chk_unused_pin_handling   check_unused_pin_handling
+        chk_esd_protection        check_esd_protection
+        chk_missing_attributes    check_missing_attributes
+        chk_unconnected_pins      check_unconnected_pins
+        chk_power_net_naming      check_power_net_naming
+        chk_single_pin_nets       check_single_pin_nets
+        chk_i2c_pullups           check_i2c_pullups
+        chk_crystal_load_caps     check_crystal_load_caps
+        chk_reset_pin             check_reset_pin
+        chk_test_points           check_test_points
+        chk_power_voltage_label   check_power_voltage_label
+        chk_net_naming            check_net_naming
+        chk_impedance_matching    check_impedance_matching
+        chk_standard_values       check_standard_values
+        chk_thermal_pad           check_thermal_pad
+        chk_connector_pinout      check_connector_pinout
     }
     foreach {var proc_name} $map {
         if {[set ::$var]} {
@@ -168,26 +257,34 @@ proc gui_run_checks {parent} {
         return
     }
 
-    # Run checks
-    run_all_checks $checkers
+    # Run checks (pass design to avoid double GetActiveDesign)
+    run_all_checks $checkers $design
 
     # Display results in GUI
-    set txt $parent.results.txt
+    set txt $parent.pw.left.rf.txt
     $txt configure -state normal
     $txt delete 1.0 end
 
     set design_name [GetDesignName $design]
-    set errors 0; set warnings 0; set passes 0
+    set p0 0; set p1 0; set p2 0; set p3 0; set passes 0
 
     foreach result $::check_results {
         set status [dict get $result status]
-        if {$status eq "PASS"} { incr passes } else {
-            if {[dict get $result severity] eq "ERROR"} { incr errors } else { incr warnings }
+        set severity [dict get $result severity]
+        if {$status eq "PASS"} {
+            incr passes
+        } else {
+            switch $severity {
+                "P0" { incr p0 }
+                "P1" { incr p1 }
+                "P2" { incr p2 }
+                "P3" { incr p3 }
+            }
         }
     }
 
     $txt insert end "Design: $design_name\n" header
-    $txt insert end "Checks: [llength $::check_results] | Pass: $passes | Error: $errors | Warning: $warnings\n" header
+    $txt insert end "Checks: [llength $::check_results] | PASS=$passes P0=$p0 P1=$p1 P2=$p2 P3=$p3\n" header
     $txt insert end [string repeat "-" 55] {}
     $txt insert end "\n"
 
@@ -200,9 +297,13 @@ proc gui_run_checks {parent} {
         if {$stat eq "PASS"} {
             $txt insert end "\[PASS\] \[$sev\] $rid\n" pass
         } else {
-            set tag "fail_warning"
-            if {$sev eq "ERROR"} { set tag "fail_error" }
-            if {$sev eq "INFO"}  { set tag "fail_info" }
+            set tag "fail_p1"
+            switch $sev {
+                "P0" { set tag "fail_p0" }
+                "P1" { set tag "fail_p1" }
+                "P2" { set tag "fail_p2" }
+                "P3" { set tag "fail_p3" }
+            }
             $txt insert end "\[FAIL\] \[$sev\] $rid\n" $tag
             foreach f $findings {
                 $txt insert end "  - [dict get $f message]\n" finding
@@ -213,9 +314,9 @@ proc gui_run_checks {parent} {
     $txt configure -state disabled
 
     # Enable upload button
-    $parent.btn.upload configure -state normal
+    $parent.pw.right.actions.upload configure -state normal
 
-    set_status "Done. $errors error(s), $warnings warning(s)."
+    set_status "Done. P0=$p0 P1=$p1 P2=$p2 P3=$p3 PASS=$passes"
 }
 
 proc gui_upload_results {} {
@@ -238,62 +339,125 @@ proc gui_upload_results {} {
 # ============================================================================
 
 proc build_ai_tab {parent} {
-    set ::ai_session_id ""
+    # AI Assistant tab - browser chat + fetch back to OrCAD
+    ttk::frame $parent.main
+    pack $parent.main -fill both -expand 1 -padx 20 -pady 10
 
-    # Chat display
-    ttk::labelframe $parent.chat -text "Conversation"
-    pack $parent.chat -fill both -expand 1 -padx 5 -pady 5
+    ttk::label $parent.main.title -text "AI Assistant" \
+        -font {Arial 16 bold}
+    pack $parent.main.title -pady {10 5}
 
-    text $parent.chat.txt -wrap word -height 18 \
-        -yscrollcommand [list $parent.chat.sb set] \
+    ttk::label $parent.main.desc -text \
+        "1. Click 'Open AI Chat' to chat in browser\n2. Click 'Send to OrCAD' on generated code\n3. Click 'Fetch Script' below to load it" \
+        -justify center
+    pack $parent.main.desc -pady {0 15}
+
+    # Open browser button
+    ttk::button $parent.main.open -text "Open AI Chat in Browser" \
+        -command gui_open_ai_chat
+    pack $parent.main.open -pady 5 -ipadx 20 -ipady 6
+
+    # Separator
+    ttk::separator $parent.main.sep -orient horizontal
+    pack $parent.main.sep -fill x -pady 15
+
+    # Fetch section
+    ttk::label $parent.main.fetch_label -text "Fetch AI-generated script:" \
+        -font {Arial 11 bold}
+    pack $parent.main.fetch_label -pady {0 5}
+
+    ttk::frame $parent.main.btns
+    pack $parent.main.btns -pady 5
+
+    ttk::button $parent.main.btns.fetch -text "Fetch Script" \
+        -command [list gui_ai_fetch $parent]
+    ttk::button $parent.main.btns.exec -text "Execute in OrCAD" \
+        -command gui_ai_exec_fetched -state disabled
+    pack $parent.main.btns.fetch $parent.main.btns.exec -side left -padx 8 -ipadx 10 -ipady 4
+
+    # Code preview
+    ttk::labelframe $parent.main.preview -text "Script Preview"
+    pack $parent.main.preview -fill both -expand 1 -pady {10 5}
+
+    text $parent.main.preview.txt -wrap word -height 10 \
+        -yscrollcommand [list $parent.main.preview.sb set] \
         -font {Consolas 10} -state disabled
-    ttk::scrollbar $parent.chat.sb -orient vertical \
-        -command [list $parent.chat.txt yview]
+    ttk::scrollbar $parent.main.preview.sb -orient vertical \
+        -command [list $parent.main.preview.txt yview]
+    pack $parent.main.preview.sb -side right -fill y
+    pack $parent.main.preview.txt -fill both -expand 1
 
-    pack $parent.chat.sb -side right -fill y
-    pack $parent.chat.txt -fill both -expand 1
+    # Status
+    ttk::label $parent.main.status -text "" -foreground "#666666"
+    pack $parent.main.status -pady {5 0}
 
-    $parent.chat.txt tag configure user -foreground "#2c3e50" -font {Consolas 10 bold}
-    $parent.chat.txt tag configure ai -foreground "#2980b9"
-    $parent.chat.txt tag configure code -background "#f5f5f5" -font {Courier 10}
-    $parent.chat.txt tag configure error_tag -foreground "#e74c3c"
-
-    # Input area
-    ttk::frame $parent.input
-    pack $parent.input -fill x -padx 5 -pady 5
-
-    ttk::entry $parent.input.entry -font {Consolas 10}
-    ttk::button $parent.input.send -text "Send" -command [list gui_ai_send $parent]
-    ttk::button $parent.input.new -text "New Session" -command [list gui_ai_new $parent]
-
-    pack $parent.input.entry -side left -fill x -expand 1 -padx {0 5}
-    pack $parent.input.send -side left -padx {0 5}
-    pack $parent.input.new -side left
-
-    bind $parent.input.entry <Return> [list gui_ai_send $parent]
-
-    # Action buttons for generated code
-    ttk::frame $parent.actions
-    pack $parent.actions -fill x -padx 5 -pady {0 5}
-
-    ttk::button $parent.actions.exec -text "Execute in OrCAD" \
-        -command [list gui_ai_execute $parent] -state disabled
-    ttk::button $parent.actions.save -text "Save to Server" \
-        -command [list gui_ai_save $parent] -state disabled
-    ttk::entry $parent.actions.name -width 25
-    $parent.actions.name insert 0 "Script name..."
-
-    pack $parent.actions.exec $parent.actions.save -side left -padx 5
-    pack $parent.actions.name -side left -padx 5 -fill x -expand 1
-
-    set ::ai_last_code ""
+    set ::ai_fetched_code ""
 }
 
+proc gui_open_ai_chat {} {
+    set url "$::server_url/ai-chat"
+    if {[catch {exec cmd /c start $url &} err]} {
+        tk_messageBox -parent .orcad_checker -icon error \
+            -title "Error" -message "Could not open browser: $err\n\nPlease open manually: $url"
+    }
+}
+
+proc gui_ai_fetch {parent} {
+    set status $parent.main.status
+    set preview $parent.main.preview.txt
+    set exec_btn $parent.main.btns.exec
+
+    $status configure -text "Fetching..."
+    update idletasks
+
+    if {[catch {
+        set resp [http_get "/api/v1/agent/clipboard"]
+        set code [json_extract_field $resp "code"]
+        set desc [json_extract_field $resp "description"]
+    } err]} {
+        $status configure -text "Error: $err"
+        return
+    }
+
+    if {$code eq ""} {
+        $status configure -text "No script available. Use 'Send to OrCAD' in browser first."
+        $exec_btn configure -state disabled
+        return
+    }
+
+    set ::ai_fetched_code $code
+    $preview configure -state normal
+    $preview delete 1.0 end
+    $preview insert end $code
+    $preview configure -state disabled
+    $exec_btn configure -state normal
+    $status configure -text "Script fetched. Review and click 'Execute in OrCAD'."
+}
+
+proc gui_ai_exec_fetched {} {
+    if {$::ai_fetched_code eq ""} return
+
+    set answer [tk_messageBox -parent .orcad_checker -icon question \
+        -title "Execute Script" -type yesno \
+        -message "Execute this TCL script in OrCAD?\n\nThis will run the code directly in Capture."]
+
+    if {$answer eq "yes"} {
+        set_status "Executing AI script..."
+        if {[catch {uplevel #0 $::ai_fetched_code} err]} {
+            tk_messageBox -parent .orcad_checker -icon error \
+                -title "Execution Error" -message "Error: $err"
+            set_status "Execution failed"
+        } else {
+            set_status "Script executed successfully"
+        }
+    }
+}
+
+# Legacy send function kept for compatibility
 proc gui_ai_send {parent} {
-    set entry $parent.input.entry
-    set msg [string trim [$entry get]]
-    if {$msg eq ""} return
-    $entry delete 0 end
+    set msg ""
+    if {[info exists ::ai_pending_msg]} { set msg $::ai_pending_msg; set ::ai_pending_msg "" }
+    if {[string trim $msg] eq ""} return
 
     set txt $parent.chat.txt
     $txt configure -state normal
@@ -368,7 +532,7 @@ proc gui_ai_execute {parent} {
 
 proc gui_ai_save {parent} {
     if {$::ai_last_code eq ""} return
-    set name [string trim [$parent.actions.name get]]
+    set name [string trim [$parent.actions.name get 1.0 end]]
     if {$name eq "" || $name eq "Script name..."} {
         tk_messageBox -parent .orcad_checker -icon warning \
             -title "Name Required" -message "Please enter a script name."
@@ -552,8 +716,8 @@ proc json_parse_script_list {json} {
     set scripts [list]
     set fields {id name version category status author}
 
-    # Split by },{ to find individual objects
-    set items [regexp -all -inline {\{[^}]+\}} $json]
+    # Split by object boundaries to find individual objects
+    set items [regexp -all -inline {\{[^\}]+\}} $json]
     foreach item $items {
         set entry [dict create]
         foreach field $fields {

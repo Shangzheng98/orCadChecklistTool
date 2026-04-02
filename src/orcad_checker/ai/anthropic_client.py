@@ -15,11 +15,18 @@ class AnthropicClient(BaseLLMClient):
         self.client = anthropic.AsyncAnthropic(api_key=api_key)
         self.model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
-    async def chat(self, system_prompt: str, user_message: str) -> str:
+    async def chat(
+        self,
+        system_prompt: str,
+        user_message: str,
+        messages: list[dict] | None = None,
+    ) -> str:
+        if messages is None:
+            messages = [{"role": "user", "content": user_message}]
         response = await self.client.messages.create(
             model=self.model,
-            max_tokens=2048,
+            max_tokens=4096,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+            messages=messages,
         )
         return response.content[0].text

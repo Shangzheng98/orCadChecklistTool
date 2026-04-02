@@ -6,6 +6,7 @@
 
 # Load helper libraries
 set script_dir [file dirname [info script]]
+source [file join $script_dir lib orcad_api.tcl]
 source [file join $script_dir lib components.tcl]
 source [file join $script_dir lib nets.tcl]
 source [file join $script_dir lib power.tcl]
