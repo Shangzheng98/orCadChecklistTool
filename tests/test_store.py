@@ -1,6 +1,13 @@
-"""Tests for the database store layer."""
-import tempfile
-from pathlib import Path
+"""Tests for the Oracle database store layer.
+
+Requires Oracle connection. Set environment variables to run:
+    ORACLE_TEST_JDBC_URL=jdbc:oracle:thin:@host:port:SID
+    ORACLE_TEST_USER=testuser
+    ORACLE_TEST_PASSWORD=testpass
+
+Tests are skipped if ORACLE_TEST_JDBC_URL is not set.
+"""
+import os
 
 import pytest
 
@@ -11,12 +18,23 @@ from orcad_checker.models.scripts import (
     ScriptMeta,
     ScriptStatus,
 )
-from orcad_checker.store.database import Database
+
+SKIP_ORACLE = not os.environ.get("ORACLE_TEST_JDBC_URL")
+skip_reason = "Oracle not configured (set ORACLE_TEST_JDBC_URL)"
+
+pytestmark = pytest.mark.skipif(SKIP_ORACLE, reason=skip_reason)
 
 
 @pytest.fixture
-def db(tmp_path):
-    return Database(db_path=tmp_path / "test.db")
+def db():
+    from orcad_checker.store.config import OracleConfig
+    from orcad_checker.store.database import Database
+
+    config = OracleConfig.from_env(prefix="ORACLE_TEST_")
+    database = Database(config)
+    yield database
+    database.truncate_all()
+    database.close()
 
 
 # ── Scripts ──────────────────────────────────────────────────
@@ -74,8 +92,8 @@ def test_script_versions(db):
 
     versions = db.get_script_versions(result.meta.id)
     assert len(versions) == 3
-    assert versions[0].version == "1.0.2"  # Latest first
-    assert versions[2].version == "1.0.0"  # Oldest last
+    assert versions[0].version == "1.0.2"
+    assert versions[2].version == "1.0.0"
 
 
 def test_publish_script(db):
@@ -156,5 +174,5 @@ def test_ota_manifest(db):
 
     manifest = db.build_ota_manifest()
     assert manifest.server_version == "0.1.0"
-    assert len(manifest.scripts) == 1  # Only published
+    assert len(manifest.scripts) == 1
     assert manifest.scripts[0].name == "Published Script"
