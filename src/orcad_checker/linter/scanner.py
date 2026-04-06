@@ -18,6 +18,16 @@ class LintIssue:
     matched_text: str = ""
     fix: str = ""
 
+    def to_dict(self) -> dict:
+        return {
+            "severity": self.severity,
+            "category": self.category,
+            "message": self.message,
+            "line": self.line,
+            "matched_text": self.matched_text,
+            "fix": self.fix,
+        }
+
 
 def scan_tcl_code(
     code: str,

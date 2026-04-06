@@ -212,3 +212,20 @@ def extract_tcl_code(response: str) -> str:
             current.append(line)
 
     return "\n\n".join(blocks) if blocks else ""
+
+
+def extract_and_lint_tcl(response: str) -> tuple[str, "LintReport | None"]:
+    """Extract TCL code from agent response and lint it.
+
+    Returns:
+        Tuple of (extracted_code, lint_report). lint_report is None if no code found.
+    """
+    code = extract_tcl_code(response)
+    if not code:
+        return "", None
+
+    from orcad_checker.linter.tcl_linter import lint_tcl, LintReport
+    # If the code contains check_ proc, validate template compliance
+    require_checker = "proc check_" in code
+    report = lint_tcl(code, require_checker=require_checker)
+    return code, report

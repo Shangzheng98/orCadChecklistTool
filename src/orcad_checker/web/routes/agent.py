@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 
-from orcad_checker.ai.tcl_agent import chat_with_agent, extract_tcl_code
+from orcad_checker.ai.tcl_agent import chat_with_agent
 from orcad_checker.models.scripts import AgentMessage, ScriptCategory, ScriptMeta
 from orcad_checker.store.database import Database
 from orcad_checker.web.deps import get_db
@@ -58,6 +58,9 @@ class ChatResponse(BaseModel):
     session_id: str
     reply: str
     extracted_code: str = ""
+    lint_passed: bool | None = None
+    lint_summary: str = ""
+    lint_issues: list[dict] = []
 
 
 class SaveScriptRequest(BaseModel):
@@ -99,25 +102,30 @@ async def agent_chat(req: ChatRequest, db: Database = Depends(get_db)):
         db.save_session, session_id, [m.model_dump() for m in messages]
     )
 
-    code = extract_tcl_code(reply)
+    from orcad_checker.ai.tcl_agent import extract_and_lint_tcl
+    code, lint_report = extract_and_lint_tcl(reply)
 
     return ChatResponse(
         session_id=session_id,
         reply=reply,
         extracted_code=code,
+        lint_passed=lint_report.passed if lint_report else None,
+        lint_summary=lint_report.summary if lint_report else "",
+        lint_issues=[i.to_dict() for i in (lint_report.issues if lint_report else [])],
     )
 
 
 @router.post("/save")
 async def save_generated_script(req: SaveScriptRequest, db: Database = Depends(get_db)):
     """Save the generated script from an agent session to the script repository."""
+    from orcad_checker.ai.tcl_agent import extract_tcl_code as _extract_tcl_code
     code = req.code
     if not code:
         raw_messages = await run_in_threadpool(db.get_session, req.session_id)
         if raw_messages:
             for msg_data in reversed(raw_messages):
                 if msg_data.get("role") == "assistant":
-                    code = extract_tcl_code(msg_data.get("content", ""))
+                    code = _extract_tcl_code(msg_data.get("content", ""))
                     if code:
                         break
 
