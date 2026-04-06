@@ -1,0 +1,185 @@
+{
+  "schema_version": "1.0.0",
+  "design_name": "GoldenTestBoard",
+  "export_timestamp": "2026-04-06T10:00:00Z",
+  "source_file": "GoldenTestBoard.dsn",
+  "components": [
+    {
+      "refdes": "R1",
+      "part_name": "RES_0402",
+      "value": "10K",
+      "footprint": "R0402",
+      "part_number": "RC0402FR-0710KL",
+      "library": "passive.olb",
+      "page": "PAGE1",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "1", "type": "PASSIVE", "net": "VCC_3V3"},
+        {"number": "2", "name": "2", "type": "PASSIVE", "net": "NET_SDA"}
+      ]
+    },
+    {
+      "refdes": "R1",
+      "part_name": "RES_0402",
+      "value": "10K",
+      "footprint": "R0402",
+      "part_number": "RC0402FR-0710KL",
+      "library": "passive.olb",
+      "page": "PAGE2",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "1", "type": "PASSIVE", "net": "VCC_3V3"},
+        {"number": "2", "name": "2", "type": "PASSIVE", "net": "NET_SCL"}
+      ]
+    },
+    {
+      "refdes": "R2",
+      "part_name": "RES_0402",
+      "value": "4.7K",
+      "footprint": "R0402",
+      "part_number": "RC0402FR-074K7L",
+      "library": "passive.olb",
+      "page": "PAGE1",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "1", "type": "PASSIVE", "net": "VCC_3V3"},
+        {"number": "2", "name": "2", "type": "PASSIVE", "net": "NET_SCL"}
+      ]
+    },
+    {
+      "refdes": "C1",
+      "part_name": "CAP_0402",
+      "value": "100nF",
+      "footprint": "C0402",
+      "part_number": "CL05B104KO5NNNC",
+      "library": "passive.olb",
+      "page": "PAGE1",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "1", "type": "PASSIVE", "net": "VCC_3V3"},
+        {"number": "2", "name": "2", "type": "PASSIVE", "net": "GND"}
+      ]
+    },
+    {
+      "refdes": "U1",
+      "part_name": "STM32F103",
+      "value": "STM32F103C8T6",
+      "footprint": "LQFP48",
+      "part_number": "STM32F103C8T6",
+      "library": "mcu.olb",
+      "page": "PAGE1",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "VDD", "type": "POWER", "net": "VCC_3V3"},
+        {"number": "2", "name": "VSS", "type": "POWER", "net": "GND"},
+        {"number": "3", "name": "PA0", "type": "BIDIRECTIONAL", "net": "NET_SDA"},
+        {"number": "4", "name": "PA1", "type": "BIDIRECTIONAL", "net": "NET_SCL"},
+        {"number": "5", "name": "PA2", "type": "BIDIRECTIONAL", "net": ""},
+        {"number": "6", "name": "PA3", "type": "BIDIRECTIONAL", "net": "ORPHAN_NET"}
+      ]
+    },
+    {
+      "refdes": "U3",
+      "part_name": "TPS63020",
+      "value": "",
+      "footprint": "",
+      "part_number": "",
+      "library": "power.olb",
+      "page": "PAGE2",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "VIN", "type": "POWER", "net": "VCC_5V"},
+        {"number": "2", "name": "VOUT", "type": "POWER", "net": "VCC_3V3"},
+        {"number": "3", "name": "GND", "type": "POWER", "net": "GND"},
+        {"number": "4", "name": "EN", "type": "INPUT", "net": "VCC_5V"},
+        {"number": "5", "name": "FB", "type": "INPUT", "net": "NET_FB"}
+      ]
+    },
+    {
+      "refdes": "J1",
+      "part_name": "CONN_USB",
+      "value": "USB-C",
+      "footprint": "USB_C_16P",
+      "part_number": "USB4105-GF-A",
+      "library": "connector.olb",
+      "page": "PAGE1",
+      "properties": {},
+      "pins": [
+        {"number": "1", "name": "VBUS", "type": "POWER", "net": "VCC_5V"},
+        {"number": "2", "name": "GND", "type": "POWER", "net": "GND"},
+        {"number": "3", "name": "D+", "type": "BIDIRECTIONAL", "net": "NET_SDA"},
+        {"number": "4", "name": "D-", "type": "BIDIRECTIONAL", "net": "NET_SCL"}
+      ]
+    }
+  ],
+  "nets": [
+    {
+      "name": "VCC_3V3",
+      "is_power": true,
+      "connections": [
+        {"refdes": "R1", "pin_number": "1", "pin_name": "1"},
+        {"refdes": "R2", "pin_number": "1", "pin_name": "1"},
+        {"refdes": "C1", "pin_number": "1", "pin_name": "1"},
+        {"refdes": "U1", "pin_number": "1", "pin_name": "VDD"},
+        {"refdes": "U3", "pin_number": "2", "pin_name": "VOUT"}
+      ]
+    },
+    {
+      "name": "GND",
+      "is_power": true,
+      "connections": [
+        {"refdes": "C1", "pin_number": "2", "pin_name": "2"},
+        {"refdes": "U1", "pin_number": "2", "pin_name": "VSS"},
+        {"refdes": "U3", "pin_number": "3", "pin_name": "GND"},
+        {"refdes": "J1", "pin_number": "2", "pin_name": "GND"}
+      ]
+    },
+    {
+      "name": "VCC_5V",
+      "is_power": true,
+      "connections": [
+        {"refdes": "U3", "pin_number": "1", "pin_name": "VIN"},
+        {"refdes": "U3", "pin_number": "4", "pin_name": "EN"},
+        {"refdes": "J1", "pin_number": "1", "pin_name": "VBUS"}
+      ]
+    },
+    {
+      "name": "NET_SDA",
+      "is_power": false,
+      "connections": [
+        {"refdes": "R1", "pin_number": "2", "pin_name": "2"},
+        {"refdes": "U1", "pin_number": "3", "pin_name": "PA0"},
+        {"refdes": "J1", "pin_number": "3", "pin_name": "D+"}
+      ]
+    },
+    {
+      "name": "NET_SCL",
+      "is_power": false,
+      "connections": [
+        {"refdes": "R1", "pin_number": "2", "pin_name": "2"},
+        {"refdes": "R2", "pin_number": "2", "pin_name": "2"},
+        {"refdes": "U1", "pin_number": "4", "pin_name": "PA1"},
+        {"refdes": "J1", "pin_number": "4", "pin_name": "D-"}
+      ]
+    },
+    {
+      "name": "NET_FB",
+      "is_power": false,
+      "connections": [
+        {"refdes": "U3", "pin_number": "5", "pin_name": "FB"},
+        {"refdes": "U1", "pin_number": "3", "pin_name": "PA0"}
+      ]
+    },
+    {
+      "name": "ORPHAN_NET",
+      "is_power": false,
+      "connections": [
+        {"refdes": "U1", "pin_number": "6", "pin_name": "PA3"}
+      ]
+    }
+  ],
+  "unconnected_pins": [
+    {"refdes": "U1", "pin_number": "5", "pin_name": "PA2"}
+  ],
+  "power_nets": ["VCC_3V3", "GND", "VCC_5V"]
+}
