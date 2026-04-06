@@ -60,7 +60,7 @@ proc check_crystal_load_caps {design} {
                             if {$other_net eq $net_name} continue
                             if {[lsearch -exact $gnd_nets $other_net] < 0} continue
                             foreach oc $other_comps {
-                                if {[dict get $oc refdes] eq $comp_ref} {
+                                if {[lindex $oc 0] eq $comp_ref} {
                                     set has_load_cap 1
                                     break
                                 }

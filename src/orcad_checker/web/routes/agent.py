@@ -1,11 +1,14 @@
 """AI Agent API — conversational TCL script generation."""
 from __future__ import annotations
 
+import logging
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
+
+logger = logging.getLogger(__name__)
 
 from orcad_checker.ai.tcl_agent import chat_with_agent, extract_tcl_code
 from orcad_checker.models.scripts import AgentMessage, ScriptCategory, ScriptMeta
@@ -86,10 +89,8 @@ async def agent_chat(req: ChatRequest, db: Database = Depends(get_db)):
     try:
         reply = await chat_with_agent(messages, db=db)
     except Exception as e:
-        return ChatResponse(
-            session_id=session_id,
-            reply=f"Error: {e}",
-        )
+        logger.exception("Agent chat failed for session %s", session_id)
+        raise HTTPException(status_code=502, detail=f"AI service error: {e}")
 
     messages.append(AgentMessage(role="assistant", content=reply))
 

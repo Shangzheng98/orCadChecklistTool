@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -9,6 +10,12 @@ from fastapi.responses import FileResponse
 from orcad_checker.store.database import Database
 from orcad_checker.web.routes import agent, checks, clients, knowledge, rules, scripts, summary, tcl_results
 
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="OrCAD Checker", version="0.2.0")
 
 allowed_origins = [
@@ -17,13 +24,17 @@ allowed_origins = [
     ).split(",")
 ]
 
+# Security: disallow credentials with wildcard origins
+_allow_credentials = "*" not in allowed_origins
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=_allow_credentials,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
+logger.info("CORS configured: origins=%s, credentials=%s", allowed_origins, _allow_credentials)
 
 
 app.state.db = Database()

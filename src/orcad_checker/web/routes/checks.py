@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
+
+logger = logging.getLogger(__name__)
 
 from orcad_checker.engine.registry import discover_checkers, list_checkers
 from orcad_checker.engine.runner import run_checks
@@ -44,7 +47,12 @@ async def run_check(
 ):
     """Upload a design JSON and run selected checkers."""
     content = await file.read()
-    data = json.loads(content)
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        logger.warning("Invalid JSON in uploaded design file: %s", e)
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
     design = parse_design_dict(data)
 
     selected = (

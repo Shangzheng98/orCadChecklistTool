@@ -48,7 +48,7 @@ proc check_reset_pin {design} {
                                 if {$other_net eq $net_name} continue
                                 if {[lsearch -exact $vcc_nets $other_net] < 0} continue
                                 foreach oc $other_comps {
-                                    if {[dict get $oc refdes] eq $comp_ref} {
+                                    if {[lindex $oc 0] eq $comp_ref} {
                                         set has_pullup 1
                                         break
                                     }
@@ -63,7 +63,7 @@ proc check_reset_pin {design} {
                                 if {$other_net eq $net_name} continue
                                 if {[lsearch -exact $gnd_nets $other_net] < 0} continue
                                 foreach oc $other_comps {
-                                    if {[dict get $oc refdes] eq $comp_ref} {
+                                    if {[lindex $oc 0] eq $comp_ref} {
                                         set has_cap 1
                                         break
                                     }

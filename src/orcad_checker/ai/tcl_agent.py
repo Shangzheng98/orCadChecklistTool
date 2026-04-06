@@ -1,7 +1,10 @@
 """AI Agent that generates TCL scripts from natural language using knowledge base context."""
 from __future__ import annotations
 
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 from orcad_checker.ai.base_client import BaseLLMClient
 from orcad_checker.models.scripts import AgentMessage, KnowledgeDoc

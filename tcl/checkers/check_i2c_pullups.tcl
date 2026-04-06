@@ -52,7 +52,7 @@ proc check_i2c_pullups {design} {
                 if {$other_net eq $net_name} continue
                 if {[lsearch -exact $power_nets $other_net] < 0} continue
                 foreach other_comp $other_comps {
-                    if {[dict get $other_comp refdes] eq $refdes} {
+                    if {[lindex $other_comp 0] eq $refdes} {
                         set has_pullup 1
                         break
                     }

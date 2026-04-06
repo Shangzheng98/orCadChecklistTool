@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
 from orcad_checker.engine.registry import discover_checkers, list_checkers
+
+logger = logging.getLogger(__name__)
 from orcad_checker.engine.rule_loader import load_rules
 from orcad_checker.models.design import Design
 from orcad_checker.models.results import Report, ReportSummary, Severity, Status
@@ -30,6 +33,7 @@ def run_checks(
         checker_ids = [cid for cid in selected_checkers if cid in all_checkers]
     else:
         checker_ids = list(all_checkers.keys())
+    logger.info("Running %d checkers on design '%s'", len(checker_ids), design.design_name)
 
     # Filter out disabled checkers from YAML config
     checker_ids = [

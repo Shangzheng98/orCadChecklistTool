@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import uuid
+
+logger = logging.getLogger(__name__)
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
