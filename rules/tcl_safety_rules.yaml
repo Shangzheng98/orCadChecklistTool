@@ -1,0 +1,60 @@
+schema_version: "1.0"
+
+# Crash Zone rules - these API calls cause OrCAD to segfault
+crash_zones:
+  - pattern: "DboFlatNet_NewPortOccurrencesIter"
+    severity: fatal
+    message: "SEGFAULT - iterating FlatNet port occurrences crashes OrCAD. Use build_net_components_map instead."
+    fix: "Use build_net_components_map from checker_utils.tcl to get net-component mapping safely."
+
+  - pattern: "DboFlatNetPortOccurrencesIter_NextPortOccurrence"
+    severity: fatal
+    message: "SEGFAULT - advancing FlatNet port occurrence iterator crashes OrCAD."
+    fix: "Use build_net_components_map from checker_utils.tcl."
+
+  - pattern: "DboFlatNet_NewNetsIter"
+    severity: fatal
+    message: "SEGFAULT - iterating FlatNet sub-nets crashes OrCAD."
+    fix: "Build net map by iterating pages/parts/pins instead."
+
+  - pattern: "DboNet_NewPortInstsIter"
+    severity: fatal
+    message: "SEGFAULT - iterating Net port instances crashes OrCAD."
+    fix: "Iterate pages/parts/pins to build net-component mapping."
+
+  - pattern: "DboInstOccurrence_sGetReferenceDesignator"
+    severity: fatal
+    message: "SEGFAULT - getting reference designator from InstOccurrence crashes OrCAD."
+    fix: "Get refdes from PartInst via GetPropValue instead."
+
+  - pattern: "DboPortOccurrence_FindInstance"
+    severity: fatal
+    message: "SEGFAULT - finding instance from PortOccurrence crashes OrCAD."
+    fix: "Iterate pages/parts/pins to find component-net relationships."
+
+# Syntax hazard patterns
+syntax_hazards:
+  - pattern: '#[^\n]*(?<![\\])[{}][^\n]*'
+    severity: warning
+    message: "Unbalanced brace in comment - this can break TCL proc body parsing."
+    fix: "Rephrase comment to avoid { or } characters."
+    is_regex: true
+
+  - pattern: '\$\w+\(\$?\w+\)'
+    severity: warning
+    message: "Possible variable/array confusion - $var($other) is TCL array access, not string interpolation."
+    fix: "Use ${var}(${other}) for string interpolation."
+    is_regex: true
+
+# Convention warnings
+conventions:
+  - pattern: "package require tls"
+    severity: warning
+    message: "package require tls is NOT available in OrCAD's embedded TCL."
+    fix: "Wrap in catch block: catch {package require tls}"
+
+  - pattern: 'destroy \.'
+    severity: warning
+    message: "Destroying root Tk window is irreversible - Tk cannot be reinitialized without restarting OrCAD."
+    fix: "Use 'wm withdraw .' to hide instead of destroying."
+    is_regex: false
