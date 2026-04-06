@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from orcad_checker.store.database import Database
+from orcad_checker.store.config import OracleConfig
 from orcad_checker.web.routes import agent, checks, clients, knowledge, rules, scripts, summary, tcl_results
 
 logging.basicConfig(
@@ -37,7 +38,8 @@ app.add_middleware(
 logger.info("CORS configured: origins=%s, credentials=%s", allowed_origins, _allow_credentials)
 
 
-app.state.db = Database()
+oracle_config = OracleConfig.from_env()
+app.state.db = Database(oracle_config)
 
 app.include_router(checks.router)
 app.include_router(rules.router)

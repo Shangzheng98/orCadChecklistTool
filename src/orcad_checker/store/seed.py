@@ -13,7 +13,8 @@ SEED_FILE = Path(__file__).parent.parent.parent.parent / "data" / "seed_knowledg
 def seed_knowledge(db: Database | None = None):
     """Load seed knowledge docs into the database if empty."""
     if db is None:
-        db = Database()
+        from orcad_checker.store.config import OracleConfig
+        db = Database(OracleConfig.from_env())
 
     existing = db.list_docs()
     if existing:
