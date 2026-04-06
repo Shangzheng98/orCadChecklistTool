@@ -53,7 +53,7 @@ conventions:
     message: "package require tls is NOT available in OrCAD's embedded TCL."
     fix: "Wrap in catch block: catch {package require tls}"
 
-  - pattern: 'destroy \.'
+  - pattern: 'destroy .'
     severity: warning
     message: "Destroying root Tk window is irreversible - Tk cannot be reinitialized without restarting OrCAD."
     fix: "Use 'wm withdraw .' to hide instead of destroying."
