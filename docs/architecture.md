@@ -45,7 +45,8 @@ graph TB
 The core of the system. Hosts the REST API, runs design-rule checks, manages the script marketplace, knowledge base, and client registry, and integrates with LLM providers for AI features.
 
 - **Framework**: FastAPI 0.100+
-- **Database**: SQLite with WAL journal mode
+- **Database**: Oracle 10+ via oracledb driver, connection pool (min=2, max=10)
+- **Config**: `config/database.yaml` (JDBC URL + credentials)
 - **Python**: 3.10+
 - **Entry point**: `orcad_checker.web.app:app`
 
@@ -78,8 +79,13 @@ src/orcad_checker/
         base_client.py     # BaseLLMClient abstract class
         anthropic_client.py # Anthropic Claude implementation
         openai_client.py   # OpenAI-compatible implementation
-        tcl_agent.py       # Conversational TCL script generation
+        tcl_agent.py       # Conversational TCL script generation + lint integration
         summarizer.py      # AI-powered check result summarization
+    linter/                # TCL script static analysis (safety validation)
+        rules.py           # SafetyRule dataclass + YAML loader
+        scanner.py         # Dangerous API / syntax / convention scanner
+        template_checker.py # Checker template compliance validator
+        tcl_linter.py      # Orchestrator: combines scanner + template checker
     checkers/              # Individual check implementations
         base.py            # BaseChecker abstract class
         duplicate_refdes.py
@@ -192,59 +198,59 @@ Client (orcad-check ota / TCL GUI)
 
 ## Database Schema
 
-The database uses SQLite with WAL journal mode. Located at `data/orcad_checker.db`, auto-created on first run.
+The database uses Oracle 10+ with oracledb driver. Connection configured via `config/database.yaml`. Tables auto-created on first run (ORA-00955 skipped if exists).
 
 ### Table: `scripts`
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | TEXT PRIMARY KEY | Short UUID (8 chars) |
-| `name` | TEXT NOT NULL | Script display name |
-| `description` | TEXT | Script description |
-| `version` | TEXT | Semantic version (e.g., `1.0.0`) |
-| `category` | TEXT | One of: `extraction`, `validation`, `automation`, `utility`, `custom` |
-| `status` | TEXT | One of: `draft`, `published`, `deprecated` |
-| `author` | TEXT | Author name |
-| `tags` | TEXT | JSON array of string tags |
-| `code` | TEXT | TCL source code |
-| `checksum` | TEXT | SHA-256 checksum (first 16 chars) |
-| `created_at` | TEXT | ISO 8601 UTC timestamp |
-| `updated_at` | TEXT | ISO 8601 UTC timestamp |
+| `id` | VARCHAR2(8) PRIMARY KEY | Short UUID (8 chars) |
+| `name` | VARCHAR2(200) NOT NULL | Script display name |
+| `description` | VARCHAR2(4000) | Script description |
+| `version` | VARCHAR2(20) | Semantic version (e.g., `1.0.0`) |
+| `category` | VARCHAR2(50) | One of: `extraction`, `validation`, `automation`, `utility`, `custom` |
+| `status` | VARCHAR2(20) | One of: `draft`, `published`, `deprecated` |
+| `author` | VARCHAR2(100) | Author name |
+| `tags` | CLOB | JSON array of string tags |
+| `code` | CLOB | TCL source code |
+| `checksum` | VARCHAR2(64) | SHA-256 checksum (first 16 chars) |
+| `created_at` | VARCHAR2(50) | ISO 8601 UTC timestamp |
+| `updated_at` | VARCHAR2(50) | ISO 8601 UTC timestamp |
 
 ### Table: `script_versions`
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | INTEGER PRIMARY KEY | Auto-increment |
-| `script_id` | TEXT | FK to `scripts.id` |
-| `version` | TEXT | Version string |
-| `code` | TEXT | Code snapshot for this version |
-| `changelog` | TEXT | What changed in this version |
-| `checksum` | TEXT | SHA-256 checksum |
-| `created_at` | TEXT | ISO 8601 UTC timestamp |
+| `id` | NUMBER (IDENTITY) | Auto-generated primary key |
+| `script_id` | VARCHAR2(8) | FK to `scripts.id` |
+| `version` | VARCHAR2(20) | Version string |
+| `code` | CLOB | Code snapshot for this version |
+| `changelog` | CLOB | What changed in this version |
+| `checksum` | VARCHAR2(64) | SHA-256 checksum |
+| `created_at` | VARCHAR2(50) | ISO 8601 UTC timestamp |
 
 ### Table: `knowledge_docs`
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | TEXT PRIMARY KEY | Short UUID |
-| `title` | TEXT NOT NULL | Document title |
-| `category` | TEXT | One of: `api`, `example`, `guide` |
-| `content` | TEXT NOT NULL | Markdown content |
-| `tags` | TEXT | JSON array of string tags |
-| `created_at` | TEXT | ISO 8601 UTC timestamp |
-| `updated_at` | TEXT | ISO 8601 UTC timestamp |
+| `id` | VARCHAR2(8) PRIMARY KEY | Short UUID |
+| `title` | VARCHAR2(500) NOT NULL | Document title |
+| `category` | VARCHAR2(50) | One of: `api`, `example`, `guide` |
+| `content` | CLOB NOT NULL | Markdown content |
+| `tags` | CLOB | JSON array of string tags |
+| `created_at` | VARCHAR2(50) | ISO 8601 UTC timestamp |
+| `updated_at` | VARCHAR2(50) | ISO 8601 UTC timestamp |
 
 ### Table: `clients`
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `client_id` | TEXT PRIMARY KEY | Unique client identifier |
-| `hostname` | TEXT | Machine hostname |
-| `username` | TEXT | OS username |
-| `orcad_version` | TEXT | Detected OrCAD version (e.g., `17.4`) |
-| `last_sync` | TEXT | Last sync timestamp |
-| `installed_scripts` | TEXT | JSON array of installed script IDs |
+| `client_id` | VARCHAR2(50) PRIMARY KEY | Unique client identifier |
+| `hostname` | VARCHAR2(200) | Machine hostname |
+| `username` | VARCHAR2(100) | OS username |
+| `orcad_version` | VARCHAR2(20) | Detected OrCAD version (e.g., `17.4`) |
+| `last_sync` | VARCHAR2(50) | Last sync timestamp |
+| `installed_scripts` | CLOB | JSON array of installed script IDs |
 
 ---
 
@@ -365,7 +371,35 @@ The agent (`tcl_agent.py`) handles conversational TCL script generation:
 2. Searches the knowledge base for relevant API docs/examples
 3. Builds a system prompt with knowledge context injected
 4. Sends the full conversation to the LLM provider
-5. Returns the reply; `extract_tcl_code()` parses out fenced TCL code blocks
+5. Returns the reply; `extract_and_lint_tcl()` parses out fenced TCL code blocks and runs safety validation
+
+### TCL Linter (Script Safety Validation)
+
+The linter (`linter/`) provides static analysis for AI-generated TCL scripts, integrated into the agent chat pipeline:
+
+```
+Agent Reply → extract TCL code → scan_tcl_code() → check_template_compliance() → LintReport
+                                      ↑                        ↑
+                              rules/tcl_safety_rules.yaml   Template pattern matching
+```
+
+**Three-layer validation:**
+
+| Layer | Module | Checks | Severity |
+|-------|--------|--------|----------|
+| Crash Zone | `scanner.py` | 6 known segfault-causing DBO APIs | fatal |
+| Syntax | `scanner.py` | Braces in comments, variable/array confusion | warning |
+| Convention | `scanner.py` | Unavailable packages, irreversible Tk operations | warning |
+| Template | `template_checker.py` | proc signature, design parameter, findings list, check_result | error/warning |
+
+**Decision logic:**
+- Any `fatal` or `error` → lint fails (`passed=False`), code execution blocked
+- Only `warning` → lint passes with warnings
+- ChatResponse includes `lint_passed`, `lint_summary`, `lint_issues` for frontend display
+
+**Safety rules** are defined in `rules/tcl_safety_rules.yaml` (machine-readable YAML, not hardcoded).
+
+**Golden test design** (`tests/fixtures/golden_test_design.json`) provides regression testing for checker accuracy with known defects.
 
 ### Summarizer
 

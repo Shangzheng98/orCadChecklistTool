@@ -274,16 +274,25 @@ pytest --cov=orcad_checker
 
 ```
 tests/
-    conftest.py               # Shared fixtures
+    conftest.py                          # Shared fixtures
     fixtures/
-        sample_design.json    # Test design data
-    test_checkers/            # Per-checker tests
+        sample_design.json               # Basic test design data
+        golden_test_design.json          # Golden design with known defects (regression testing)
+    test_checkers/                       # Per-checker tests
         test_duplicate_refdes.py
-    test_engine.py            # Engine integration tests
-    test_parser.py            # Parser tests
-    test_store.py             # Database tests
-    test_api.py               # API endpoint tests
-    test_tcl_results.py       # TCL results upload tests
+        test_missing_attributes.py
+        test_golden_design.py            # Golden design regression tests
+    test_linter/                         # TCL Linter tests
+        test_rules.py                    # Safety rules YAML loading
+        test_scanner.py                  # Dangerous API / syntax / convention scanning
+        test_template_checker.py         # Checker template compliance
+        test_tcl_linter.py              # Linter orchestrator
+        test_agent_integration.py        # Agent pipeline lint integration
+    test_engine.py                       # Engine integration tests
+    test_parser.py                       # Parser tests
+    test_store.py                        # Database tests
+    test_api.py                          # API endpoint tests
+    test_tcl_results.py                  # TCL results upload tests
 ```
 
 ### Key Fixture
@@ -335,16 +344,40 @@ def test_list_checkers():
 
 ## Database
 
-### Location
+### Oracle Configuration
 
-SQLite database at `data/orcad_checker.db`, auto-created on first access via `Database.__init__()`.
+Database connection is configured via YAML file (`config/database.yaml`), not environment variables.
 
-### No Migration Framework
+```bash
+# Create config from template
+cp config/database.yaml.example config/database.yaml
+# Edit with your Oracle connection info
+```
 
-Tables are created with `CREATE TABLE IF NOT EXISTS` on every `Database()` instantiation. Schema changes require either:
-- Manually altering the SQLite database
-- Deleting the database file and letting it be recreated
+```yaml
+oracle:
+  jdbc_url: "jdbc:oracle:thin:@host:1521:SID"
+  user: "orcad_checker"
+  password: "your_password"
+  pool_min: 2
+  pool_max: 10
+```
+
+> `config/database.yaml` contains credentials and is excluded from Git via `.gitignore`.
+
+### Table Creation
+
+Tables are auto-created on startup. If a table already exists, `ORA-00955` is caught and skipped. Schema changes require either:
+- Manually altering the Oracle table via SQL
+- Dropping and recreating the table
 - Adding `ALTER TABLE` statements to `_init_tables()`
+
+### Connection Pool
+
+Uses `oracledb.create_pool()` with configurable min/max connections:
+- Default: min=2, max=10
+- Get timeout: 5 seconds (returns 503 if pool exhausted)
+- CLOB auto-conversion: `outputtypehandler` converts CLOB to Python str automatically
 
 ### Seeding
 
@@ -359,17 +392,19 @@ The seed file contains 7 documents covering OrCAD TCL API reference, examples, a
 
 ### Direct Access
 
-The `Database` class can be used directly for testing or scripting:
+The `Database` class requires an `OracleConfig` instance:
 
 ```python
+from orcad_checker.store.config import OracleConfig
 from orcad_checker.store.database import Database
 
-db = Database()  # Uses default path
-# or
-db = Database("/tmp/test.db")  # Custom path
+config = OracleConfig.from_yaml("config/database.yaml")
+db = Database(config)
 
 scripts = db.list_scripts(status="published")
 doc = db.create_doc(KnowledgeDoc(title="My Doc", content="..."))
+
+db.close()  # Release connection pool
 ```
 
 ---
@@ -584,9 +619,17 @@ Uses the official `openai` Python SDK pointed at the custom base URL. The API ke
 
 The OrCAD design must be open before running checks. Ensure a `.dsn` file is open in OrCAD Capture.
 
-### Database locked errors
+### Oracle connection errors
 
-SQLite uses WAL journal mode for better concurrent read access, but only one writer is allowed at a time. If running multiple processes, consider using separate database instances or adding retry logic.
+Common Oracle errors and solutions:
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `DPY-6005: cannot connect` | Host/port unreachable | Check `config/database.yaml` host and port |
+| `ORA-01017: invalid username/password` | Wrong credentials | Check user/password in config |
+| `ORA-12514: listener does not know of service` | Wrong SID/service name | Verify with DBA |
+| `DPY-4011: pool timed out` | All connections busy | Increase `pool_max` in config |
+| `FileNotFoundError: config/database.yaml` | Config missing | `cp config/database.yaml.example config/database.yaml` |
 
 ### Frontend shows blank page
 

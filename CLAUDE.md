@@ -11,6 +11,13 @@
   - `gui/main_window.tcl` — Tk GUI (embedded in OrCAD)
 - `tcl/orcad_checker.tcl` — main entry point, sources everything
 - `src/orcad_checker/` — Python backend (FastAPI)
+  - `store/config.py` — Oracle 数据库配置 (JDBC URL 解析，从 YAML 加载)
+  - `store/database.py` — Oracle 数据库访问层 (oracledb 连接池，所有 CRUD)
+  - `linter/` — TCL 脚本静态分析器 (安全规则扫描 + 模板合规检查)
+- `config/database.yaml` — Oracle 连接配置 (含密码，不提交 Git)
+- `config/database.yaml.example` — 配置模板
+- `rules/tcl_safety_rules.yaml` — TCL 安全规则 (崩溃 API / 语法隐患 / 约定)
+- `tests/fixtures/golden_test_design.json` — 黄金测试设计 (checker 回归测试)
 - `docs/tcl_knowledge_base.md` — TCL scripting knowledge base
 
 ## OrCAD DBO TCL API Conventions
