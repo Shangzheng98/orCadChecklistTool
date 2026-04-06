@@ -1,13 +1,9 @@
 """Tests for the Oracle database store layer.
 
-Requires Oracle connection. Set environment variables to run:
-    ORACLE_TEST_JDBC_URL=jdbc:oracle:thin:@host:port:SID
-    ORACLE_TEST_USER=testuser
-    ORACLE_TEST_PASSWORD=testpass
-
-Tests are skipped if ORACLE_TEST_JDBC_URL is not set.
+Requires Oracle connection. Create config/database.yaml with Oracle connection info.
+Tests are skipped if config/database.yaml does not exist.
 """
-import os
+from pathlib import Path
 
 import pytest
 
@@ -19,8 +15,9 @@ from orcad_checker.models.scripts import (
     ScriptStatus,
 )
 
-SKIP_ORACLE = not os.environ.get("ORACLE_TEST_JDBC_URL")
-skip_reason = "Oracle not configured (set ORACLE_TEST_JDBC_URL)"
+_CONFIG_PATH = Path(__file__).parent.parent / "config" / "database.yaml"
+SKIP_ORACLE = not _CONFIG_PATH.exists()
+skip_reason = "Oracle not configured (config/database.yaml not found)"
 
 pytestmark = pytest.mark.skipif(SKIP_ORACLE, reason=skip_reason)
 
@@ -30,7 +27,7 @@ def db():
     from orcad_checker.store.config import OracleConfig
     from orcad_checker.store.database import Database
 
-    config = OracleConfig.from_env(prefix="ORACLE_TEST_")
+    config = OracleConfig.from_yaml(_CONFIG_PATH)
     database = Database(config)
     yield database
     database.truncate_all()

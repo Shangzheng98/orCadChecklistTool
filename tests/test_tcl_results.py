@@ -1,11 +1,12 @@
 """Tests for TCL result upload API."""
-import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-SKIP_ORACLE = not os.environ.get("ORACLE_JDBC_URL")
-pytestmark = pytest.mark.skipif(SKIP_ORACLE, reason="Oracle not configured (set ORACLE_JDBC_URL)")
+_CONFIG_PATH = Path(__file__).parent.parent / "config" / "database.yaml"
+SKIP_ORACLE = not _CONFIG_PATH.exists()
+pytestmark = pytest.mark.skipif(SKIP_ORACLE, reason="Oracle not configured (config/database.yaml not found)")
 
 if not SKIP_ORACLE:
     from orcad_checker.web.app import app

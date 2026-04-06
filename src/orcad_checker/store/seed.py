@@ -14,7 +14,7 @@ def seed_knowledge(db: Database | None = None):
     """Load seed knowledge docs into the database if empty."""
     if db is None:
         from orcad_checker.store.config import OracleConfig
-        db = Database(OracleConfig.from_env())
+        db = Database(OracleConfig.from_yaml())
 
     existing = db.list_docs()
     if existing:

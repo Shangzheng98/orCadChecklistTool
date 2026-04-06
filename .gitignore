@@ -16,3 +16,4 @@ frontend/dist/
 *.swo
 .DS_Store
 *.db
+config/database.yaml

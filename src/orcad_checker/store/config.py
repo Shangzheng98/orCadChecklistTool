@@ -1,30 +1,48 @@
 """Oracle 数据库连接配置。
 
-从 JDBC URL 和环境变量解析 Oracle 连接参数。
+从 YAML 配置文件解析 Oracle 连接参数。
+
+配置文件默认路径: config/database.yaml
+
+YAML 格式:
+    oracle:
+      jdbc_url: "jdbc:oracle:thin:@host:port:SID"
+      user: "username"
+      password: "password"
+      pool_min: 2
+      pool_max: 10
 
 支持两种 JDBC URL 格式:
     - SID 格式:          jdbc:oracle:thin:@host:port:SID
     - Service Name 格式: jdbc:oracle:thin:@host:port/service_name
-
-环境变量:
-    ORACLE_JDBC_URL  - JDBC 连接 URL (必需)
-    ORACLE_USER      - 数据库用户名 (必需)
-    ORACLE_PASSWORD   - 数据库密码 (必需)
-    ORACLE_POOL_MIN  - 连接池最小连接数 (默认: 2)
-    ORACLE_POOL_MAX  - 连接池最大连接数 (默认: 10)
 """
 from __future__ import annotations
 
-import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from pathlib import Path
 
 import oracledb
+import yaml
+
+# 默认配置文件路径 (项目根目录下 config/database.yaml)
+_DEFAULT_CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "config" / "database.yaml"
 
 
 @dataclass
 class OracleConfig:
-    """Oracle 连接配置。"""
+    """Oracle 连接配置。
+
+    Attributes:
+        host:         数据库主机地址。
+        port:         监听端口。
+        sid:          Oracle SID (与 service_name 二选一)。
+        service_name: Oracle Service Name (与 sid 二选一)。
+        user:         数据库用户名。
+        password:     数据库密码。
+        pool_min:     连接池最小连接数。
+        pool_max:     连接池最大连接数。
+    """
     host: str
     port: int
     user: str
@@ -49,7 +67,15 @@ class OracleConfig:
         pool_min: int = 2,
         pool_max: int = 10,
     ) -> OracleConfig:
-        """从 JDBC URL 解析配置。"""
+        """从 JDBC URL 解析配置。
+
+        支持格式:
+            jdbc:oracle:thin:@host:port:SID
+            jdbc:oracle:thin:@host:port/service_name
+
+        Raises:
+            ValueError: JDBC URL 格式无效。
+        """
         # 匹配 SID 格式: @host:port:SID
         sid_match = re.search(r'@([\w.\-]+):(\d+):(\w+)$', jdbc_url)
         if sid_match:
@@ -84,16 +110,36 @@ class OracleConfig:
         )
 
     @classmethod
-    def from_env(cls, prefix: str = "ORACLE_") -> OracleConfig:
-        """从环境变量加载配置。"""
-        jdbc_url = os.environ.get(f"{prefix}JDBC_URL")
-        if not jdbc_url:
-            raise ValueError(f"{prefix}JDBC_URL environment variable is required")
+    def from_yaml(cls, config_path: str | Path | None = None) -> OracleConfig:
+        """从 YAML 配置文件加载配置。
 
-        user = os.environ.get(f"{prefix}USER", "")
-        password = os.environ.get(f"{prefix}PASSWORD", "")
-        pool_min = int(os.environ.get(f"{prefix}POOL_MIN", "2"))
-        pool_max = int(os.environ.get(f"{prefix}POOL_MAX", "10"))
+        Args:
+            config_path: YAML 文件路径。为 None 时使用默认路径 config/database.yaml。
+
+        Raises:
+            FileNotFoundError: 配置文件不存在。
+            ValueError: 配置文件缺少必需字段。
+        """
+        path = Path(config_path) if config_path else _DEFAULT_CONFIG_PATH
+
+        if not path.exists():
+            raise FileNotFoundError(f"数据库配置文件不存在: {path}")
+
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        oracle = data.get("oracle")
+        if not oracle:
+            raise ValueError(f"配置文件缺少 'oracle' 节: {path}")
+
+        jdbc_url = oracle.get("jdbc_url")
+        if not jdbc_url:
+            raise ValueError(f"配置文件缺少 'oracle.jdbc_url': {path}")
+
+        user = oracle.get("user", "")
+        password = oracle.get("password", "")
+        pool_min = int(oracle.get("pool_min", 2))
+        pool_max = int(oracle.get("pool_max", 10))
 
         return cls.from_jdbc_url(
             jdbc_url=jdbc_url,

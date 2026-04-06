@@ -38,7 +38,7 @@ app.add_middleware(
 logger.info("CORS configured: origins=%s, credentials=%s", allowed_origins, _allow_credentials)
 
 
-oracle_config = OracleConfig.from_env()
+oracle_config = OracleConfig.from_yaml()
 app.state.db = Database(oracle_config)
 
 app.include_router(checks.router)
