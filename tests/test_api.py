@@ -1,14 +1,21 @@
 """Tests for the web API endpoints."""
 import json
+import os
 import tempfile
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from orcad_checker.web.app import app
+SKIP_ORACLE = not os.environ.get("ORACLE_JDBC_URL")
+pytestmark = pytest.mark.skipif(SKIP_ORACLE, reason="Oracle not configured (set ORACLE_JDBC_URL)")
 
-client = TestClient(app)
+if not SKIP_ORACLE:
+    from orcad_checker.web.app import app
+    client = TestClient(app)
+else:
+    app = None  # type: ignore[assignment]
+    client = None  # type: ignore[assignment]
 
 
 def test_get_checkers():

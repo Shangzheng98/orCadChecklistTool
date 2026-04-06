@@ -1,8 +1,18 @@
 """Tests for TCL result upload API."""
-from fastapi.testclient import TestClient
-from orcad_checker.web.app import app
+import os
 
-client = TestClient(app)
+import pytest
+from fastapi.testclient import TestClient
+
+SKIP_ORACLE = not os.environ.get("ORACLE_JDBC_URL")
+pytestmark = pytest.mark.skipif(SKIP_ORACLE, reason="Oracle not configured (set ORACLE_JDBC_URL)")
+
+if not SKIP_ORACLE:
+    from orcad_checker.web.app import app
+    client = TestClient(app)
+else:
+    app = None  # type: ignore[assignment]
+    client = None  # type: ignore[assignment]
 
 
 def test_upload_tcl_results():
