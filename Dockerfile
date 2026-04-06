@@ -23,7 +23,7 @@ LABEL description="OrCAD Capture Schematic Checklist Tool - Server"
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (includes oracledb)
 COPY pyproject.toml ./
 COPY src/ ./src/
 RUN pip install --no-cache-dir . -i https://pypi.tuna.tsinghua.edu.cn/simple \
@@ -38,10 +38,10 @@ COPY tcl/ ./tcl/
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Data volume for SQLite DB persistence
-VOLUME /app/data
+# Config directory (database.yaml mounted at runtime)
+RUN mkdir -p /app/config
 
-# Environment defaults
+# Environment defaults (AI only, database config via YAML file)
 ENV AI_PROVIDER=anthropic \
     ANTHROPIC_API_KEY="" \
     ANTHROPIC_MODEL="claude-sonnet-4-20250514" \
@@ -53,7 +53,7 @@ ENV AI_PROVIDER=anthropic \
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://localhost:8000/api/v1/checkers').raise_for_status()"
 
 CMD ["sh", "-c", "uvicorn orcad_checker.web.app:app --host ${HOST} --port ${PORT}"]

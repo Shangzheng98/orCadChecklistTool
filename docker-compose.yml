@@ -9,8 +9,8 @@ services:
     ports:
       - "${PORT:-8000}:8000"
     volumes:
-      - orcad-data:/app/data          # SQLite DB 持久化
-      - ./rules:/app/rules             # 规则配置热更新
+      - ./config:/app/config:ro          # Oracle 数据库配置 (database.yaml)
+      - ./rules:/app/rules               # 规则配置热更新
     environment:
       - AI_PROVIDER=${AI_PROVIDER:-anthropic}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -25,7 +25,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-
-volumes:
-  orcad-data:
-    driver: local
